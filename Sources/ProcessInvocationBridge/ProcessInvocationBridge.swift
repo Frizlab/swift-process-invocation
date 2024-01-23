@@ -16,10 +16,11 @@ import CGNUSourceExports
 
 
 
+/* This logic is duplicated in the constants of the main module. */
 #if Xcode
-public let processInvocationBridgeName = "ProcessInvocationBridge"
+private let processInvocationBridgeName = "ProcessInvocationBridge"
 #else
-public let processInvocationBridgeName = "swift-process-invocation-bridge"
+private let processInvocationBridgeName = "swift-process-invocation-bridge"
 #endif
 
 @main
