@@ -1,0 +1,70 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "clt-logger",
+        "repositoryURL": "https://github.com/xcode-actions/clt-logger.git",
+        "state": {
+          "branch": null,
+          "revision": "d60fd8ede1821e652e8c4dcd13862ce8fdaaa977",
+          "version": "0.8.0"
+        }
+      },
+      {
+        "package": "eXtenderZ",
+        "repositoryURL": "https://github.com/xcode-actions/eXtenderZ.git",
+        "state": {
+          "branch": null,
+          "revision": "c59e94553295a7e8a0c3ce1465a2bed073cb6ca9",
+          "version": "1.0.7"
+        }
+      },
+      {
+        "package": "stream-reader",
+        "repositoryURL": "https://github.com/xcode-actions/stream-reader.git",
+        "state": {
+          "branch": null,
+          "revision": "bae1bfb2fc2cdc6f89c3f6e89ef92d22039ef7b5",
+          "version": "3.5.0"
+        }
+      },
+      {
+        "package": "swift-argument-parser",
+        "repositoryURL": "https://github.com/apple/swift-argument-parser.git",
+        "state": {
+          "branch": null,
+          "revision": "c8ed701b513cf5177118a175d85fbbbcd707ab41",
+          "version": "1.3.0"
+        }
+      },
+      {
+        "package": "swift-log",
+        "repositoryURL": "https://github.com/apple/swift-log.git",
+        "state": {
+          "branch": null,
+          "revision": "e97a6fcb1ab07462881ac165fdbb37f067e205d5",
+          "version": "1.5.4"
+        }
+      },
+      {
+        "package": "swift-signal-handling",
+        "repositoryURL": "https://github.com/xcode-actions/swift-signal-handling.git",
+        "state": {
+          "branch": null,
+          "revision": "1ab6d3d6f703b5215ac85612401d1d828b5eab24",
+          "version": "1.1.0"
+        }
+      },
+      {
+        "package": "UnwrapOrThrow",
+        "repositoryURL": "https://github.com/Frizlab/UnwrapOrThrow.git",
+        "state": {
+          "branch": null,
+          "revision": "085ea7b599b0db956541b7189a57b0c98f15337f",
+          "version": "1.0.1-rc.1"
+        }
+      }
+    ]
+  },
+  "version": 1
+}
