@@ -177,7 +177,7 @@ struct ProcessInvocationBridge : ParsableCommand {
 				/* Finally set PATH */
 				setenv("PATH", path ?? _PATH_DEFPATH, 1)
 				/* And exec the process */
-				ret = xct_execvpe(toolName, cargs, newEnv)
+				ret = spi_execvpe(toolName, cargs, newEnv)
 #endif
 			} else {
 				ret = execv(toolName, cargs)
@@ -233,11 +233,11 @@ struct ProcessInvocationBridge : ParsableCommand {
 		}
 		
 		var receivedFd: Int32 = -1
-		guard let cmsg = XCT_CMSG_FIRSTHDR(&msg), cmsg.pointee.cmsg_type == SCM_RIGHTS else {
+		guard let cmsg = SPI_CMSG_FIRSTHDR(&msg), cmsg.pointee.cmsg_type == SCM_RIGHTS else {
 			/* TODO: Use an actual error (internal error) */
 			throw ExitCode(rawValue: 1)
 		}
-		memmove(&receivedFd, XCT_CMSG_DATA(cmsg), MemoryLayout.size(ofValue: receivedFd))
+		memmove(&receivedFd, SPI_CMSG_DATA(cmsg), MemoryLayout.size(ofValue: receivedFd))
 		
 		let expectedDestinationFd = iovBase.pointee
 		

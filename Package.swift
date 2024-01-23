@@ -67,8 +67,7 @@ let package = Package(
 			if needsGNUSourceExports {
 				res.append(.target(name: "CGNUSourceExports"))
 			}
-			/* XcodeTools depends (indirectly) on xct to launch processes with additional file descriptors.
-			 * To avoid a cyclic dependency, we do not add it in the deps. */
+			/* The ProcessInvocation depends (indirectly) on the bridge. */
 			res.append(.target(name: "ProcessInvocationBridge"))
 			return res
 		}(), swiftSettings: swiftSettings))

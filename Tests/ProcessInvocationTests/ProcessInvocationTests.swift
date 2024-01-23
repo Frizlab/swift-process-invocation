@@ -25,7 +25,7 @@ final class ProcessInvocationTests : XCTestCase {
 		bootstrapIfNeeded()
 		Conf.logger = logger
 		
-		/* Let’s set the xct exec path env var (some methods need it) */
+		/* Let’s set the path for the bridge (some methods need it). */
 		setenv(Constants.bridgePathEnvVarName, productsDirectory.path, 1)
 	}
 	
@@ -49,7 +49,7 @@ final class ProcessInvocationTests : XCTestCase {
 			
 			let expectedEnvValue = UUID().uuidString
 			
-			let (outputs, exitCode, exitReason) = try await ProcessInvocation(checkCwdAndEnvPath, "XCT_PROCESS_TEST_VALUE", workingDirectory: workingDirectory, environment:  ["XCT_PROCESS_TEST_VALUE": expectedEnvValue], signalsToProcess: [])
+			let (outputs, exitCode, exitReason) = try await ProcessInvocation(checkCwdAndEnvPath, "SWIFTPROCESSINVOCATION_TEST_VALUE", workingDirectory: workingDirectory, environment:  ["SWIFTPROCESSINVOCATION_TEST_VALUE": expectedEnvValue], signalsToProcess: [])
 				.invokeAndGetOutput(checkValidTerminations: false)
 			XCTAssertEqual(exitCode, 0)
 			XCTAssertEqual(exitReason, .exit)

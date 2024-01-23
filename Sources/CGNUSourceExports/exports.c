@@ -3,6 +3,6 @@
 
 
 
-int xct_execvpe(const char *file, char *const argv[], char *const envp[]) {
+int spi_execvpe(const char *file, char *const argv[], char *const envp[]) {
 	return execvpe(file, argv, envp);
 }

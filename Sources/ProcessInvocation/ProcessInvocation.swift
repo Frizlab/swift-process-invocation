@@ -959,18 +959,18 @@ public struct ProcessInvocation : AsyncSequence {
 		msg.msg_iovlen = 1
 		
 		/* Ancillary data. This is where we send the actual fd. */
-		let buf = UnsafeMutableRawPointer.allocate(byteCount: XCT_CMSG_SPACE(sizeOfFd), alignment: MemoryLayout<cmsghdr>.alignment)
+		let buf = UnsafeMutableRawPointer.allocate(byteCount: SPI_CMSG_SPACE(sizeOfFd), alignment: MemoryLayout<cmsghdr>.alignment)
 		defer {buf.deallocate()}
 		
 #if !os(Linux)
 		msg.msg_control = UnsafeMutableRawPointer(buf)
-		msg.msg_controllen = socklen_t(XCT_CMSG_SPACE(sizeOfFd))
+		msg.msg_controllen = socklen_t(SPI_CMSG_SPACE(sizeOfFd))
 #else
 		msg.msg_control = UnsafeMutableRawPointer(buf)
-		msg.msg_controllen = Int(XCT_CMSG_SPACE(sizeOfFd))
+		msg.msg_controllen = Int(SPI_CMSG_SPACE(sizeOfFd))
 #endif
 		
-		guard let cmsg = XCT_CMSG_FIRSTHDR(&msg) else {
+		guard let cmsg = SPI_CMSG_FIRSTHDR(&msg) else {
 			throw Err.internalError("CMSG_FIRSTHDR returned nil.")
 		}
 		
@@ -983,11 +983,11 @@ public struct ProcessInvocation : AsyncSequence {
 #endif
 		
 #if !os(Linux)
-		cmsg.pointee.cmsg_len = socklen_t(XCT_CMSG_LEN(sizeOfFd))
+		cmsg.pointee.cmsg_len = socklen_t(SPI_CMSG_LEN(sizeOfFd))
 #else
-		cmsg.pointee.cmsg_len = Int(XCT_CMSG_LEN(sizeOfFd))
+		cmsg.pointee.cmsg_len = Int(SPI_CMSG_LEN(sizeOfFd))
 #endif
-		memmove(XCT_CMSG_DATA(cmsg), &fd, sizeOfFd)
+		memmove(SPI_CMSG_DATA(cmsg), &fd, sizeOfFd)
 		
 		guard sendmsg(socket, &msg, /*flags: */0) != -1 else {
 			throw Err.systemError(Errno(rawValue: errno))
@@ -1001,7 +1001,7 @@ public struct ProcessInvocation : AsyncSequence {
 
 #if canImport(eXtenderZ)
 
-class XcodeToolsProcessExtender : NSObject, XCTTaskExtender {
+class XcodeToolsProcessExtender : NSObject, SPITaskExtender {
 	
 	let additionalCompletionHandler: (Process) -> Void
 	
