@@ -49,7 +49,8 @@ final class ProcessInvocationTests : XCTestCase {
 			
 			let expectedEnvValue = UUID().uuidString
 			
-			let (outputs, exitCode, exitReason) = try await ProcessInvocation(checkCwdAndEnvPath, "SWIFTPROCESSINVOCATION_TEST_VALUE", workingDirectory: workingDirectory, environment:  ["SWIFTPROCESSINVOCATION_TEST_VALUE": expectedEnvValue], signalsToProcess: [])
+			let PATH = getenv("PATH").flatMap{ String(cString: $0) }
+			let (outputs, exitCode, exitReason) = try await ProcessInvocation(checkCwdAndEnvPath, "SWIFTPROCESSINVOCATION_TEST_VALUE", workingDirectory: workingDirectory, environment:  ["SWIFTPROCESSINVOCATION_TEST_VALUE": expectedEnvValue, "PATH": PATH].compactMapValues{ $0 }, signalsToProcess: [])
 				.invokeAndGetOutput(checkValidTerminations: false)
 			XCTAssertEqual(exitCode, 0)
 			XCTAssertEqual(exitReason, .exit)
