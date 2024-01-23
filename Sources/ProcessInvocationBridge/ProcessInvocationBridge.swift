@@ -41,7 +41,7 @@ struct ProcessInvocationBridge : ParsableCommand {
 	@Argument
 	var toolName: String
 	
-	@Argument(parsing: .unconditionalRemaining)
+	@Argument(parsing: .captureForPassthrough)
 	var toolArguments: [String] = []
 	
 	static var logger: Logger = {
@@ -210,7 +210,7 @@ struct ProcessInvocationBridge : ParsableCommand {
 		let controlBufSize = 256
 		let controlBuf = UnsafeMutablePointer<Int8>.allocate(capacity: controlBufSize)
 		defer {controlBuf.deallocate()}
-		controlBuf.assign(repeating: 0, count: controlBufSize)
+		controlBuf.update(repeating: 0, count: controlBufSize)
 		msg.msg_control = UnsafeMutableRawPointer(controlBuf)
 #if !os(Linux)
 		msg.msg_controllen = socklen_t(controlBufSize)
