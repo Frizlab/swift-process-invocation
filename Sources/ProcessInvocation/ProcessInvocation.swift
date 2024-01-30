@@ -669,7 +669,7 @@ public struct ProcessInvocation : AsyncSequence {
 			g.enter()
 		}
 		
-		Conf.logger?.info("Launching process \(executable)\(fileDescriptorsToSend.isEmpty ? "" : " through swift-process-invocation-bridge")")
+		Conf.logger?.info("Launching process\(fileDescriptorsToSend.isEmpty ? "" : " through swift-process-invocation-bridge").", metadata: ["executable_name": "\(executable)", "arguments": .array(args.map{ "\($0)" })])
 		try cleanupIfThrows{
 			let actualPATH = [forcedPreprendedPATH].compactMap{ $0 } + PATH
 			func tryPaths(from index: Int, executableComponent: FilePath.Component) throws {
