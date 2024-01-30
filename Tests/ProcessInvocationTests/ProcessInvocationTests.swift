@@ -362,6 +362,36 @@ final class ProcessInvocationTests : XCTestCase {
 		/* LINUXASYNC STOP --------- */
 	}
 	
+	/* From swift-sh failure on Linux. */
+	func testRedirectToPTY() throws {
+		/* LINUXASYNC START --------- */
+		let group = DispatchGroup()
+		group.enter()
+		Task{do{
+			/* LINUXASYNC STOP --------- */
+			
+			var slaveRawFd: Int32 = 0
+			var masterRawFd: Int32 = 0
+			guard openpty(&masterRawFd, &slaveRawFd, nil/*name*/, nil/*termp*/, nil/*winp*/) == 0 else {
+				struct CannotOpenTTYError : Error {var errmsg: String}
+				throw CannotOpenTTYError(errmsg: Errno(rawValue: errno).localizedDescription)
+			}
+			/* Note: No defer in which we close the fds, they will be closed by ProcessInvocation. */
+			let slaveFd = FileDescriptor(rawValue: slaveRawFd)
+			let masterFd = FileDescriptor(rawValue: masterRawFd)
+			_ = try await ProcessInvocation(
+				"bash", "-c", "echo ok",
+				stdin: nil, stdoutRedirect: .toFd(slaveFd, giveOwnership: true), stderrRedirect: .toNull, additionalOutputFileDescriptors: [masterFd],
+				lineSeparators: .newLine(unix: true, legacyMacOS: false, windows: true/* Because of the pty, I think. */)
+			).invokeAndGetRawOutput()
+			
+			/* LINUXASYNC START --------- */
+			group.leave()
+		} catch {XCTFail("Error thrown during async test: \(error)"); group.leave()}}
+		group.wait()
+		/* LINUXASYNC STOP --------- */
+	}
+	
 	/* While XCTest does not have support for async for XCTAssertThrowsError */
 	private func tempAsyncAssertThrowsError<T>(_ block: @autoclosure () async throws -> T, _ message: @escaping @autoclosure () -> String = "", file: StaticString = #filePath, line: UInt = #line, _ errorHandler: (_ error: Error) -> Void = { _ in }) async {
 		do    {_ = try await block(); XCTAssertThrowsError(    {             }(), message(), file: file, line: line, errorHandler)}
