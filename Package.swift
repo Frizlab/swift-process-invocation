@@ -96,8 +96,9 @@ let package = Package(
 #if !canImport(System)
 			res.append(.product(name: "SystemPackage",  package: "swift-system"))
 #endif
-//			res.append(.target(name: "CommonForTests"))
-//			res.append(.target(name: "Utils"))
+			if needsGNUSourceExports {
+				res.append(.target(name: "CGNUSourceExportsForTests"))
+			}
 			return res
 		}(), swiftSettings: swiftSettings))
 		
@@ -108,6 +109,7 @@ let package = Package(
 		}
 		if needsGNUSourceExports {
 			res.append(.target(name: "CGNUSourceExports", swiftSettings: swiftSettings))
+			res.append(.target(name: "CGNUSourceExportsForTests", swiftSettings: swiftSettings))
 		}
 		
 		return res

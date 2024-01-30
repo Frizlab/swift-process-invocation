@@ -10,9 +10,9 @@ import CLTLogger
 import Logging
 import StreamReader
 
-//import Utils
-
-//import CommonForTests
+#if canImport(CGNUSourceExportsForTests)
+import CGNUSourceExportsForTests
+#endif
 
 @testable import ProcessInvocation
 
@@ -370,8 +370,8 @@ final class ProcessInvocationTests : XCTestCase {
 		Task{do{
 			/* LINUXASYNC STOP --------- */
 			
-			var slaveRawFd: Int32 = 0
-			var masterRawFd: Int32 = 0
+			var slaveRawFd: Int32 = -1
+			var masterRawFd: Int32 = -1
 			guard openpty(&masterRawFd, &slaveRawFd, nil/*name*/, nil/*termp*/, nil/*winp*/) == 0 else {
 				struct CannotOpenTTYError : Error {var errmsg: String}
 				throw CannotOpenTTYError(errmsg: Errno(rawValue: errno).localizedDescription)
@@ -379,6 +379,69 @@ final class ProcessInvocationTests : XCTestCase {
 			/* Note: No defer in which we close the fds, they will be closed by ProcessInvocation. */
 			let slaveFd = FileDescriptor(rawValue: slaveRawFd)
 			let masterFd = FileDescriptor(rawValue: masterRawFd)
+			_ = try await ProcessInvocation(
+				"bash", "-c", "echo ok",
+				stdin: nil, stdoutRedirect: .toFd(slaveFd, giveOwnership: true), stderrRedirect: .toNull, additionalOutputFileDescriptors: [masterFd],
+				lineSeparators: .newLine(unix: true, legacyMacOS: false, windows: true/* Because of the pty, I think. */)
+			).invokeAndGetRawOutput()
+			
+			/* LINUXASYNC START --------- */
+			group.leave()
+		} catch {XCTFail("Error thrown during async test: \(error)"); group.leave()}}
+		group.wait()
+		/* LINUXASYNC STOP --------- */
+	}
+	
+	/* Variant of testRedirectToPTY but using the POSIX method of opening the PTY.
+	 * Thank God the behavior seems to be the same! */
+	func testRedirectToPTYUsingPOSIX() throws {
+		/* LINUXASYNC START --------- */
+		let group = DispatchGroup()
+		group.enter()
+		Task{do{
+			/* LINUXASYNC STOP --------- */
+			
+			/* Open master PTY fd first. */
+			let masterRawFd = posix_openpt(O_RDWR)
+			guard masterRawFd > 0 else {
+				throw Errno(rawValue: errno)
+			}
+			
+			/* Create a cleanup block if there are errors opening the slave fd. */
+			let masterFd = FileDescriptor(rawValue: masterRawFd)
+			let closeMasterKeepErrno = {
+				let curErr = errno
+				if (try? masterFd.close()) == nil {
+					Self.logger.warning("Failed to close master PTY fd after grantpt or unlockpt failed.")
+				}
+				errno = curErr
+			}
+			
+			/* Grant and unlock the PTY fd (not what that does, but whateer…). */
+			guard grantpt(masterRawFd) == 0, unlockpt(masterRawFd) == 0 else {
+				closeMasterKeepErrno()
+				throw Errno(rawValue: errno)
+			}
+			
+			/* Retrieve the slave PTY name. */
+			guard let cSlaveFilename = ptsname(masterRawFd) else {
+				closeMasterKeepErrno()
+				throw Errno(rawValue: errno)
+			}
+			/* Copy the return of ptsname, whose memory is not guaranteed to last.
+			 * In theory I think I could pass the return of ptsname directly to the open call next,
+			 *  but my source (<https://stackoverflow.com/a/74285225>) did the copy. */
+			let slaveFilename = String(cString: cSlaveFilename)
+			
+			/* Open the slave PTY. */
+			let slaveRawFd = slaveFilename.withCString{ open($0, O_RDWR) }
+			guard slaveRawFd > 0 else {
+				closeMasterKeepErrno()
+				throw Errno(rawValue: errno)
+			}
+			let slaveFd = FileDescriptor(rawValue: slaveRawFd)
+			
+			/* Note: No defer in which we close the fds, they will be closed by ProcessInvocation. */
 			_ = try await ProcessInvocation(
 				"bash", "-c", "echo ok",
 				stdin: nil, stdoutRedirect: .toFd(slaveFd, giveOwnership: true), stderrRedirect: .toNull, additionalOutputFileDescriptors: [masterFd],
