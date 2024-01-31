@@ -314,14 +314,14 @@ final class ProcessInvocationTests : XCTestCase {
 			let curPath = getenv("PATH").flatMap{ String(cString: $0) }
 			
 			do {
-				let envBefore = EnvAndCwd()
+				let envBefore = EnvAndCwd().removing(keys: ["MANPATH"])
 				let fd = try FileDescriptor.open("/dev/null", .readOnly)
 				let output = try await ProcessInvocation(checkCwdAndEnvPath, usePATH: true, customPATH: [Self.scriptsPath], stdoutRedirect: .capture, stderrRedirect: .toNull, signalsToProcess: [], fileDescriptorsToSend: [fd: fd], lineSeparators: .none)
 					.invokeAndGetRawOutput()
 				let data = try XCTUnwrap(output.onlyElement)
 				XCTAssert(data.eol.isEmpty)
 				let envInside = try JSONDecoder().decode(EnvAndCwd.self, from: data.line).removing(keys: ["MANPATH"])
-				let envAfter = EnvAndCwd()
+				let envAfter = EnvAndCwd().removing(keys: ["MANPATH"])
 				XCTAssertEqual(envBefore, envInside)
 				XCTAssertEqual(envBefore, envAfter)
 #if false
