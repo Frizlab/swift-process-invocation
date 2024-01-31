@@ -493,8 +493,13 @@ public struct ProcessInvocation : AsyncSequence {
 				p.standardError = FileHandle(fileDescriptor: fdForWriting.rawValue, closeOnDealloc: false)
 		}
 		
+#if !os(Linux)
+		let platformSpecificInfo: Void = ()
+#else
+		var platformSpecificInfo = StreamReadPlatformSpecificInfo()
+#endif
+		
 #if os(Linux)
-		var masterPTFileDescriptors = Set<FileDescriptor>()
 		for fd in outputFileDescriptors {
 			/* Let’s see if the fd is a master pt or not.
 			 * This is needed to detect EOF properly and not throw an error when reading from a master pt (see handleProcessOutput for more info). */
@@ -505,7 +510,7 @@ public struct ProcessInvocation : AsyncSequence {
 				}
 			} else {
 				Conf.logger?.trace("Found an output file descriptor which seems to be a master pt.", metadata: ["fd": "\(fd.rawValue)"])
-				masterPTFileDescriptors.insert(fd)
+				platformSpecificInfo.masterPTFileDescriptors.insert(fd)
 			}
 			try cleanupIfThrows{
 				let isFromClient = additionalOutputFileDescriptors.contains(fd)
@@ -752,11 +757,6 @@ public struct ProcessInvocation : AsyncSequence {
 			streamSource.setEventHandler{
 				/* `source.data`: see doc of dispatch_source_get_data in objc */
 				/* `source.mask`: see doc of dispatch_source_get_mask in objc (is always 0 for read source) */
-#if !os(Linux)
-				let platformSpecificInfo: Void = ()
-#else
-				let platformSpecificInfo = StreamReadPlatformSpecificInfo(masterPTFileDescriptors: masterPTFileDescriptors, processIsTerminated: { !p.isRunning })
-#endif
 				Self.handleProcessOutput(
 					streamSource: streamSource,
 					outputHandler: { lineOrError, signalEOI in actualOutputHandler(lineOrError.map{ RawLineWithSource(line: $0.0, eol: $0.1, fd: fdRedirects[fd] ?? fd) }, signalEOI, p) },
@@ -845,8 +845,7 @@ public struct ProcessInvocation : AsyncSequence {
 	private typealias StreamReadPlatformSpecificInfo = Void
 #else
 	private struct StreamReadPlatformSpecificInfo {
-		var masterPTFileDescriptors: Set<FileDescriptor>
-		var processIsTerminated: () -> Bool
+		var masterPTFileDescriptors: Set<FileDescriptor> = []
 	}
 #endif
 	
@@ -931,8 +930,13 @@ public struct ProcessInvocation : AsyncSequence {
 					Conf.logger?.trace("Masking resource temporarily unavailable error.", metadata: ["source": "\(streamReader.sourceStream)"])
 					return .success(0)
 				}
-				if case Errno.ioError = e, platformSpecificInfo.processIsTerminated(), platformSpecificInfo.masterPTFileDescriptors.contains(streamReader.sourceStream as! FileDescriptor) {
-					/* See <https://stackoverflow.com/a/72159292> for more info about why we do this. */
+				if case Errno.ioError = e, platformSpecificInfo.masterPTFileDescriptors.contains(streamReader.sourceStream as! FileDescriptor) {
+					/* See <https://stackoverflow.com/a/72159292> for more info about why we do this.
+					 * The link says the I/O error occurs when everything is closed, aka. when the process has died.
+					 * Initially we checked whether the process was running and if it were we did not convert the I/O error to EOF,
+					 *  but we had races where the process had effectively finished running but isRunning still returned true.
+					 * (Interestingly the check worked when the verbose mode was present but not when it was not.)
+					 * Now we only check for a master pt fd and assume the I/O error is EOF… */
 					Conf.logger?.trace("Converting I/O error to EOF.", metadata: ["source": "\(streamReader.sourceStream)"])
 					streamReader.readSizeLimit = streamReader.currentStreamReadPosition - streamReader.currentReadPosition
 					return .success(0)
