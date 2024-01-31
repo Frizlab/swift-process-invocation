@@ -5,15 +5,17 @@ import System
 import SystemPackage
 #endif
 
-import StreamReader
-
-import CMacroExports
-import SignalHandling
-
 #if canImport(eXtenderZ)
 import CNSTaskHelptender
 import eXtenderZ
 #endif
+import SignalHandling
+import StreamReader
+
+#if os(Linux)
+import CGNUSourceExports
+#endif
+import CMacroExports
 
 
 
@@ -492,11 +494,23 @@ public struct ProcessInvocation : AsyncSequence {
 		}
 		
 #if os(Linux)
-		/* I did not find any other way than using non-blocking IO on Linux.
-		 * <https://stackoverflow.com/questions/39173429/one-shot-level-triggered-epoll-does-epolloneshot-imply-epollet/46142976#comment121697690_46142976> */
+		var masterPTFileDescriptors = Set<FileDescriptor>()
 		for fd in outputFileDescriptors {
+			/* Let’s see if the fd is a master pt or not.
+			 * This is needed to detect EOF properly and not throw an error when reading from a master pt (see handleProcessOutput for more info). */
+			if spi_ptsname(fd.rawValue) == nil {
+				let error = Errno(rawValue: errno)
+				if error.rawValue != ENOTTY {
+					Conf.logger?.warning("Cannot determine whether fd is a master pt or not; assuming it’s not.", metadata: ["fd": "\(fd.rawValue)", "error": "\(error)"])
+				}
+			} else {
+				Conf.logger?.trace("Found an output file descriptor which seems to be a master pt.", metadata: ["fd": "\(fd.rawValue)"])
+				masterPTFileDescriptors.insert(fd)
+			}
 			try cleanupIfThrows{
 				let isFromClient = additionalOutputFileDescriptors.contains(fd)
+				/* I did not find any other way than using non-blocking IO on Linux.
+				 * <https://stackoverflow.com/questions/39173429/one-shot-level-triggered-epoll-does-epolloneshot-imply-epollet/46142976#comment121697690_46142976> */
 				try Self.setRequireNonBlockingIO(on: fd, logChange: isFromClient)
 				if isFromClient {
 					/* The fd is not ours.
@@ -738,13 +752,18 @@ public struct ProcessInvocation : AsyncSequence {
 			streamSource.setEventHandler{
 				/* `source.data`: see doc of dispatch_source_get_data in objc */
 				/* `source.mask`: see doc of dispatch_source_get_mask in objc (is always 0 for read source) */
+#if !os(Linux)
+				let platformSpecificInfo: Void = ()
+#else
+				let platformSpecificInfo = StreamReadPlatformSpecificInfo(masterPTFileDescriptors: masterPTFileDescriptors, processIsTerminated: p.isRunning)
+#endif
 				Self.handleProcessOutput(
 					streamSource: streamSource,
-					streamQueue: Self.streamQueue,
 					outputHandler: { lineOrError, signalEOI in actualOutputHandler(lineOrError.map{ RawLineWithSource(line: $0.0, eol: $0.1, fd: fdRedirects[fd] ?? fd) }, signalEOI, p) },
 					lineSeparators: lineSeparators,
 					streamReader: streamReader,
-					estimatedBytesAvailable: streamSource.data
+					estimatedBytesAvailable: streamSource.data,
+					platformSpecificInfo: platformSpecificInfo
 				)
 			}
 			streamSource.activate()
@@ -818,6 +837,19 @@ public struct ProcessInvocation : AsyncSequence {
 		
 	}
 	
+	/* ***************
+	   MARK: - Private
+	   *************** */
+	
+#if !os(Linux)
+	private typealias StreamReadPlatformSpecificInfo = Void
+#else
+	private struct StreamReadPlatformSpecificInfo {
+		var masterPTFileDescriptors: Set<FileDescriptor>
+		var processIsTerminated: Bool
+	}
+#endif
+	
 	private static let streamQueue = DispatchQueue(label: "com.xcode-actions.process")
 	
 	private static func checkTermination(expectedTerminations: [(Int32, Process.TerminationReason)]?, terminationStatus: Int32, terminationReason: Process.TerminationReason) throws {
@@ -867,7 +899,14 @@ public struct ProcessInvocation : AsyncSequence {
 		}
 	}
 	
-	private static func handleProcessOutput(streamSource: DispatchSourceRead, streamQueue: DispatchQueue, outputHandler: @escaping (Result<(Data, Data), Error>, () -> Void) -> Void, lineSeparators: LineSeparators, streamReader: GenericStreamReader, estimatedBytesAvailable: UInt) {
+	private static func handleProcessOutput(
+		streamSource: DispatchSourceRead,
+		outputHandler: @escaping (Result<(Data, Data), Error>, () -> Void) -> Void,
+		lineSeparators: LineSeparators,
+		streamReader: GenericStreamReader,
+		estimatedBytesAvailable: UInt,
+		platformSpecificInfo: StreamReadPlatformSpecificInfo
+	) {
 		do {
 			let toRead = Int(Swift.min(Swift.max(estimatedBytesAvailable, 1), UInt(Int.max)))
 #if !os(Linux)
@@ -892,7 +931,8 @@ public struct ProcessInvocation : AsyncSequence {
 					Conf.logger?.trace("Masking resource temporarily unavailable error.", metadata: ["source": "\(streamReader.sourceStream)"])
 					return .success(0)
 				}
-				if case Errno.ioError = e {
+				if case Errno.ioError = e, platformSpecificInfo.processIsTerminated, platformSpecificInfo.masterPTFileDescriptors.contains(streamReader.sourceStream as! FileDescriptor) {
+					/* See <https://stackoverflow.com/a/72159292> for more info about why we do this. */
 					Conf.logger?.trace("Converting I/O error to EOF.", metadata: ["source": "\(streamReader.sourceStream)"])
 					streamReader.readSizeLimit = streamReader.currentStreamReadPosition - streamReader.currentReadPosition
 					return .success(0)
