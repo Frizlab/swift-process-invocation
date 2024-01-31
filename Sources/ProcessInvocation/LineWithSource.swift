@@ -9,7 +9,7 @@ import UnwrapOrThrow
 
 
 
-public struct RawLineWithSource : Equatable, Hashable {
+public struct RawLineWithSource : Equatable, Hashable, CustomStringConvertible {
 	
 	public var line: Data
 	public var eol: Data
@@ -36,14 +36,24 @@ public struct RawLineWithSource : Equatable, Hashable {
 		return String(data: eol, encoding: encoding) ?? line.reduce("", { $0 + String(format: "%02x", $1) })
 	}
 	
+	public var description: String {
+		return "RawLineWithSource<\(fd.rawValue), 0x\(line.reduce("", { $0 + String(format: "%02x", $1) })), 0x\(eol.reduce("", { $0 + String(format: "%02x", $1) }))>"
+	}
+	
 }
 
 
-public struct LineWithSource : Equatable, Hashable {
+public struct LineWithSource : Equatable, Hashable, CustomStringConvertible {
 	
 	public var line: String
-	public var eol: String
+	public var eol:  String
 	
 	public var fd: FileDescriptor
+	
+	public var description: String {
+		let escapedLine: String = line.unicodeScalars.lazy.map{ $0.escaped(asASCII: true) }.joined()
+		let escapedEOL:  String = eol .unicodeScalars.lazy.map{ $0.escaped(asASCII: true) }.joined()
+		return #"RawLineWithSource<\#(fd.rawValue), "\#(escapedLine)", "\#(escapedEOL)">"#
+	}
 	
 }
