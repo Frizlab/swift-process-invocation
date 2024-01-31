@@ -433,7 +433,7 @@ public struct ProcessInvocation : AsyncSequence {
 			
 			fdToSwitchToBlockingInCaseOfError.forEach{ fd in
 				do    {try Self.removeRequireNonBlockingIO(on: fd)}
-				catch {Conf.logger?.error("Cannot revert fd \(fd.rawValue) to blocking.")}
+				catch {Conf.logger?.error("Cannot revert fd to blocking.", metadata: ["fd": "\(fd.rawValue)"])}
 			}
 			fdsToCloseInCaseOfError.forEach{ try? $0.close() }
 			
@@ -467,7 +467,7 @@ public struct ProcessInvocation : AsyncSequence {
 				fdsToCloseInCaseOfError.insert(fdForReading)
 				fdsToCloseInCaseOfError.insert(fdForWriting)
 				
-				Conf.logger?.trace("stdout pipe is r:\(fdForReading.rawValue) w:\(fdForWriting.rawValue)")
+				Conf.logger?.trace("Got stdout pipe.", metadata: ["read_fd": "\(fdForReading.rawValue)", "write_fd": "\(fdForWriting.rawValue)"])
 				p.standardOutput = FileHandle(fileDescriptor: fdForWriting.rawValue, closeOnDealloc: false)
 		}
 		switch stderrRedirect {
@@ -487,7 +487,7 @@ public struct ProcessInvocation : AsyncSequence {
 				fdsToCloseInCaseOfError.insert(fdForReading)
 				fdsToCloseInCaseOfError.insert(fdForWriting)
 				
-				Conf.logger?.trace("stderr pipe is r:\(fdForReading.rawValue) w:\(fdForWriting.rawValue)")
+				Conf.logger?.trace("Got stdout pipe.", metadata: ["read_fd": "\(fdForReading.rawValue)", "write_fd": "\(fdForWriting.rawValue)"])
 				p.standardError = FileHandle(fileDescriptor: fdForWriting.rawValue, closeOnDealloc: false)
 		}
 		
@@ -609,7 +609,7 @@ public struct ProcessInvocation : AsyncSequence {
 		}
 		
 		let delayedSigations = try cleanupIfThrows{ try SigactionDelayer_Unsig.registerDelayedSigactions(signalsToProcess, handler: { (signal, handler) in
-			Conf.logger?.debug("Handler action in ProcessInvocation", metadata: ["signal": "\(signal)"])
+			Conf.logger?.debug("Executing signal handler action in ProcessInvocation.", metadata: ["signal": "\(signal)"])
 			guard p.isRunning else {
 				Conf.logger?.trace("Process is not running; forwarding signal directly.", metadata: ["signal": "\(signal)"])
 				handler(true)
@@ -631,7 +631,7 @@ public struct ProcessInvocation : AsyncSequence {
 			}
 			
 			guard signalForChildSucceeded else {
-				Conf.logger?.debug("Failed sending signal to children; ignoring signal.", metadata: ["signal": "\(signal)"])
+				Conf.logger?.notice("Failed sending signal to children; ignoring signal.", metadata: ["signal": "\(signal)"])
 				return handler(false)
 			}
 			
@@ -644,13 +644,13 @@ public struct ProcessInvocation : AsyncSequence {
 		let signalCleanupHandler = {
 			let errors = SigactionDelayer_Unsig.unregisterDelayedSigactions(Set(delayedSigations.values))
 			for (signal, error) in errors {
-				Conf.logger?.error("Cannot unregister delayed sigaction: \(error)", metadata: ["signal": "\(signal)"])
+				Conf.logger?.error("Cannot unregister delayed sigaction.", metadata: ["signal": "\(signal)", "error": "\(error)"])
 			}
 		}
 		signalCleaningOnError = signalCleanupHandler
 		
 		let additionalTerminationHandler: (Process) -> Void = { _ in
-			Conf.logger?.debug("Called in termination handler of process")
+			Conf.logger?.debug("Called in termination handler of process.")
 			signalCleanupHandler()
 			g.leave()
 		}
@@ -661,7 +661,7 @@ public struct ProcessInvocation : AsyncSequence {
 #endif
 		
 		/* We used to enter the dispatch group in the registration handlers of the dispatch sources,
-		 * but we got races where the executable ended before the distatch sources were even registered.
+		 *  but we got races where the executable ended before the distatch sources were even registered.
 		 * So now we enter the group before launching the executable.
 		 * We enter also once for the process launch (left in additional termination handler of the process). */
 		countOfDispatchGroupLeaveInCaseOfError = outputFileDescriptors.count + 1
@@ -669,13 +669,13 @@ public struct ProcessInvocation : AsyncSequence {
 			g.enter()
 		}
 		
-		Conf.logger?.info("Launching process\(fileDescriptorsToSend.isEmpty ? "" : " through swift-process-invocation-bridge").", metadata: ["executable_name": "\(executable)", "arguments": .array(args.map{ "\($0)" })])
+		Conf.logger?.info("Launching process\(fileDescriptorsToSend.isEmpty ? "" : " through swift-process-invocation-bridge").", metadata: ["command": .array(["\(executable)"] + args.map{ "\($0)" })])
 		try cleanupIfThrows{
 			let actualPATH = [forcedPreprendedPATH].compactMap{ $0 } + PATH
 			func tryPaths(from index: Int, executableComponent: FilePath.Component) throws {
 				do {
 					let url = URL(fileURLWithPath: actualPATH[index].appending([executableComponent]).string)
-					Conf.logger?.debug("Trying path \(url.path)")
+					Conf.logger?.debug("Trying new executable path for launch.", metadata: ["path": "\(url.path)"])
 					p.executableURL = url
 					try p.run()
 				} catch {
@@ -718,9 +718,9 @@ public struct ProcessInvocation : AsyncSequence {
 				for (fdInChild, fdToSend) in fileDescriptorsToSend {
 					try Self.send(fd: fdToSend.rawValue, destfd: fdInChild.rawValue, to: fdToSendFds.rawValue)
 				}
-				Conf.logger?.trace("Closing fd to send fds")
+				Conf.logger?.trace("Closing fd to send fds.", metadata: ["fd": "\(fdToSendFds)"])
 				try fdToSendFds.close()
-				Conf.logger?.trace("Closing sent fds")
+				Conf.logger?.trace("Closing sent fds.", metadata: ["fds": .array(fileDescriptorsToSend.values.filter{ $0 != .standardInput }.map{ "\($0)" })])
 				try fileDescriptorsToSend.values.forEach{ if $0 != .standardInput {try $0.close()} }
 				fdsToCloseInCaseOfError.remove(fdToSendFds) /* Not really useful there cannot be any more errors from there. */
 			}
@@ -843,7 +843,7 @@ public struct ProcessInvocation : AsyncSequence {
 		
 		if logChange {
 			/* We only log for fd that were not ours */
-			Conf.logger?.warning("Setting O_NONBLOCK option on fd \(fd)")
+			Conf.logger?.warning("Setting O_NONBLOCK option on fd.", metadata: ["fd": "\(fd)"])
 		}
 		guard fcntl(fd.rawValue, F_SETFL, newFlags) != -1 else {
 			throw Err.systemError(Errno(rawValue: errno))
@@ -876,20 +876,20 @@ public struct ProcessInvocation : AsyncSequence {
 			 *  the stream reader will remember it, and
 			 *  the readLine method will properly return nil without even trying to read from the stream.
 			 * Which matters, because we forbid the reader from reading from the underlying stream (except in these read). */
-			Conf.logger?.trace("Reading around \(toRead) bytes from \(streamReader.sourceStream)")
+			Conf.logger?.trace("Reading output stream.", metadata: ["approximate_bytes_count": "\(toRead)", "source": "\(streamReader.sourceStream)"])
 			_ = try streamReader.readStreamInBuffer(size: toRead, allowMoreThanOneRead: false, bypassUnderlyingStreamReadSizeLimit: true)
 #else
-			Conf.logger?.trace("In libdispatch callback for \(streamReader.sourceStream)")
+			Conf.logger?.trace("In libdispatch callback.", metadata: ["source": "\(streamReader.sourceStream)"])
 			/* On Linux we have to use non-blocking IO for some reason.
 			 * I’d say it’s a libdispatch bug, but I’m not sure.
 			 * <https://stackoverflow.com/questions/39173429#comment121697690_46142976> */
 			let read: () throws -> Int = {
-				Conf.logger?.trace("Reading around \(toRead) bytes from \(streamReader.sourceStream)")
+				Conf.logger?.trace("Reading output stream.", metadata: ["approximate_bytes_count": "\(toRead)", "source": "\(streamReader.sourceStream)"])
 				return try streamReader.readStreamInBuffer(size: toRead, allowMoreThanOneRead: false, bypassUnderlyingStreamReadSizeLimit: true)
 			}
 			let processError: (Error) -> Result<Int, Error> = { e in
 				if case Errno.resourceTemporarilyUnavailable = e {
-					Conf.logger?.trace("Masking resource temporarily unavailable error")
+					Conf.logger?.trace("Masking resource temporarily unavailable error.", metadata: ["source": "\(streamReader.sourceStream)"])
 					return .success(0)
 				}
 				return .failure(e)
@@ -918,20 +918,20 @@ public struct ProcessInvocation : AsyncSequence {
 				var continueStream = true
 				outputHandler(.success((lineData, eolData)), { continueStream = false })
 				guard continueStream else {
-					Conf.logger?.debug("Client is not interested in stream anymore; cancelling read stream for \(streamReader.sourceStream)")
+					Conf.logger?.debug("Client is not interested in stream anymore; cancelling read stream.", metadata: ["source": "\(streamReader.sourceStream)"])
 					streamSource.cancel()
 					return
 				}
 			}
-			/* We have read all the stream, we can stop */
-			Conf.logger?.debug("End of stream reached; cancelling read stream for \(streamReader.sourceStream)")
+			/* We have read all the stream, we can stop. */
+			Conf.logger?.debug("End of stream reached (or eoi signalled); cancelling read stream.", metadata: ["source": "\(streamReader.sourceStream)"])
 			streamSource.cancel()
 			
 		} catch StreamReaderError.streamReadForbidden {
-			Conf.logger?.trace("Error reading from \(streamReader.sourceStream): stream read forbidden (this is normal)")
+			Conf.logger?.trace("Error reading stream: read forbidden (this is normal).", metadata: ["source": "\(streamReader.sourceStream)"])
 			
 		} catch {
-			Conf.logger?.warning("Error reading from \(streamReader.sourceStream): \(error)")
+			Conf.logger?.warning("Error reading stream.", metadata: ["source": "\(streamReader.sourceStream)", "error": "\(error)"])
 			outputHandler(.failure(error), { })
 			/* We stop the stream at first unknown error. */
 			streamSource.cancel()
@@ -940,9 +940,9 @@ public struct ProcessInvocation : AsyncSequence {
 	
 	/* Based on <https://stackoverflow.com/a/28005250> (last variant). */
 	private static func send(fd: CInt, destfd: CInt, to socket: CInt) throws {
-		var fd = fd /* A var because we use a pointer to it at some point, but never actually modified */
-		let sizeOfFd = MemoryLayout.size(ofValue: fd) /* We’ll need this later */
-		let sizeOfDestfd = MemoryLayout.size(ofValue: destfd) /* We’ll need this later */
+		var fd = fd /* A var because we use a pointer to it at some point, but never actually modified. */
+		let sizeOfFd = MemoryLayout.size(ofValue: fd) /* We’ll need this later. */
+		let sizeOfDestfd = MemoryLayout.size(ofValue: destfd) /* We’ll need this later. */
 		
 		var msg = msghdr()
 		
@@ -992,7 +992,7 @@ public struct ProcessInvocation : AsyncSequence {
 		guard sendmsg(socket, &msg, /*flags: */0) != -1 else {
 			throw Err.systemError(Errno(rawValue: errno))
 		}
-		Conf.logger?.debug("sent fd \(fd) through socket to child process")
+		Conf.logger?.debug("Sent fd through socket to child process", metadata: ["fd": "\(fd)"])
 	}
 	
 }
