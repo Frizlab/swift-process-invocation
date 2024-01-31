@@ -379,11 +379,12 @@ final class ProcessInvocationTests : XCTestCase {
 			/* Note: No defer in which we close the fds, they will be closed by ProcessInvocation. */
 			let slaveFd = FileDescriptor(rawValue: slaveRawFd)
 			let masterFd = FileDescriptor(rawValue: masterRawFd)
-			_ = try await ProcessInvocation(
+			let output = try await ProcessInvocation(
 				"bash", "-c", "echo ok",
 				stdin: nil, stdoutRedirect: .toFd(slaveFd, giveOwnership: true), stderrRedirect: .toNull, additionalOutputFileDescriptors: [masterFd],
 				lineSeparators: .newLine(unix: true, legacyMacOS: false, windows: true/* Because of the pty, I think. */)
 			).invokeAndGetRawOutput()
+			XCTAssertEqual(output, [.init(line: Data([0x6f, 0x6b]), eol: Data([0x0d, 0x0a]), fd: masterFd)])
 			
 			/* LINUXASYNC START --------- */
 			group.leave()
@@ -442,11 +443,12 @@ final class ProcessInvocationTests : XCTestCase {
 			let slaveFd = FileDescriptor(rawValue: slaveRawFd)
 			
 			/* Note: No defer in which we close the fds, they will be closed by ProcessInvocation. */
-			_ = try await ProcessInvocation(
+			let output = try await ProcessInvocation(
 				"bash", "-c", "echo ok",
 				stdin: nil, stdoutRedirect: .toFd(slaveFd, giveOwnership: true), stderrRedirect: .toNull, additionalOutputFileDescriptors: [masterFd],
-				lineSeparators: .newLine(unix: true, legacyMacOS: false, windows: true/* Because of the pty, I think. */)
+				lineSeparators: .customCharacters([0x6b])
 			).invokeAndGetRawOutput()
+			XCTAssertEqual(output, [.init(line: Data([0x6f]), eol: Data([0x6b]), fd: masterFd), .init(line: Data([0x0d, 0x0a]), eol: Data(), fd: masterFd)])
 			
 			/* LINUXASYNC START --------- */
 			group.leave()
