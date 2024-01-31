@@ -755,7 +755,7 @@ public struct ProcessInvocation : AsyncSequence {
 #if !os(Linux)
 				let platformSpecificInfo: Void = ()
 #else
-				let platformSpecificInfo = StreamReadPlatformSpecificInfo(masterPTFileDescriptors: masterPTFileDescriptors, processIsTerminated: !p.isRunning)
+				let platformSpecificInfo = StreamReadPlatformSpecificInfo(masterPTFileDescriptors: masterPTFileDescriptors, processIsTerminated: { !p.isRunning })
 #endif
 				Self.handleProcessOutput(
 					streamSource: streamSource,
@@ -846,7 +846,7 @@ public struct ProcessInvocation : AsyncSequence {
 #else
 	private struct StreamReadPlatformSpecificInfo {
 		var masterPTFileDescriptors: Set<FileDescriptor>
-		var processIsTerminated: Bool
+		var processIsTerminated: () -> Bool
 	}
 #endif
 	
@@ -931,7 +931,7 @@ public struct ProcessInvocation : AsyncSequence {
 					Conf.logger?.trace("Masking resource temporarily unavailable error.", metadata: ["source": "\(streamReader.sourceStream)"])
 					return .success(0)
 				}
-				if case Errno.ioError = e, platformSpecificInfo.processIsTerminated, platformSpecificInfo.masterPTFileDescriptors.contains(streamReader.sourceStream as! FileDescriptor) {
+				if case Errno.ioError = e, platformSpecificInfo.processIsTerminated(), platformSpecificInfo.masterPTFileDescriptors.contains(streamReader.sourceStream as! FileDescriptor) {
 					/* See <https://stackoverflow.com/a/72159292> for more info about why we do this. */
 					Conf.logger?.trace("Converting I/O error to EOF.", metadata: ["source": "\(streamReader.sourceStream)"])
 					streamReader.readSizeLimit = streamReader.currentStreamReadPosition - streamReader.currentReadPosition
