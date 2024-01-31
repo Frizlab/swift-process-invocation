@@ -892,6 +892,11 @@ public struct ProcessInvocation : AsyncSequence {
 					Conf.logger?.trace("Masking resource temporarily unavailable error.", metadata: ["source": "\(streamReader.sourceStream)"])
 					return .success(0)
 				}
+				if case Errno.ioError = e {
+					Conf.logger?.trace("Converting I/O error to EOF.", metadata: ["source": "\(streamReader.sourceStream)"])
+					streamReader.readSizeLimit = streamReader.currentStreamReadPosition - streamReader.currentReadPosition
+					return .success(0)
+				}
 				return .failure(e)
 			}
 			while try Result(catching: read).flatMapError(processError).get() >= toRead {/*nop*/}
