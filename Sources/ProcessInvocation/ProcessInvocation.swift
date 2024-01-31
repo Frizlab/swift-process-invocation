@@ -755,7 +755,7 @@ public struct ProcessInvocation : AsyncSequence {
 #if !os(Linux)
 				let platformSpecificInfo: Void = ()
 #else
-				let platformSpecificInfo = StreamReadPlatformSpecificInfo(masterPTFileDescriptors: masterPTFileDescriptors, processIsTerminated: p.isRunning)
+				let platformSpecificInfo = StreamReadPlatformSpecificInfo(masterPTFileDescriptors: masterPTFileDescriptors, processIsTerminated: !p.isRunning)
 #endif
 				Self.handleProcessOutput(
 					streamSource: streamSource,
