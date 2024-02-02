@@ -932,7 +932,7 @@ public struct ProcessInvocation : AsyncSequence {
 				}
 				if case Errno.ioError = e, platformSpecificInfo.masterPTFileDescriptors.contains(streamReader.sourceStream as! FileDescriptor) {
 					/* See <https://stackoverflow.com/a/72159292> for more info about why we do this.
-					 * The link says the I/O error occurs when everything is closed, aka. when the process has died.
+					 * The link above says the I/O error occurs when every slave is closed, aka. when the process has died.
 					 * Initially we checked whether the process was running and if it were we did not convert the I/O error to EOF,
 					 *  but we had races where the process had effectively finished running but isRunning still returned true.
 					 * (Interestingly the check worked when the verbose mode was present but not when it was not.)
