@@ -35,7 +35,7 @@ let package = Package(
 		var res = [Package.Dependency]()
 		res.append(.package(url: "https://github.com/apple/swift-argument-parser.git",         from: "1.2.2"))
 		res.append(.package(url: "https://github.com/apple/swift-log.git",                     from: "1.5.2"))
-		res.append(.package(url: "https://github.com/Frizlab/UnwrapOrThrow.git",               from: "1.0.1-rc"))
+		res.append(.package(url: "https://github.com/Frizlab/UnwrapOrThrow.git",               from: "1.0.1"))
 		res.append(.package(url: "https://github.com/xcode-actions/clt-logger.git",            from: "0.5.1"))
 		res.append(.package(url: "https://github.com/xcode-actions/stream-reader.git",         from: "3.5.0"))
 		res.append(.package(url: "https://github.com/xcode-actions/swift-signal-handling.git", from: "1.1.1"))
