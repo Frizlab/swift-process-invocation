@@ -80,17 +80,17 @@ public struct ProcessInvocation : AsyncSequence {
 	public struct SignalHandling {
 		
 		public var signalForChild: Signal?
-//		public var signalForParent: Signal? /* Changing the signal is not possible w/ swift-signal-handling, but it’s not a big deal. */
+//		public var signalForParent: Signal? /* Changing the signal is not possible w/ swift-signal-handling, but it’s not a big deal. It could be done but has not. */
 		public var allowOnParent: Bool
 		public var sendToProcessGroupOfChild: Bool
 		public var waitForChildDeathBeforeSendingToParent: Bool
 		
 		public static func `default`(for signal: Signal) -> Self {
-			return .init(signalForChild: signal)
+			return .init(signalForChild: signal, waitForChildDeathBeforeSendingToParent: Signal.killingSignals.contains(signal))
 		}
 		
 		public static func mapForChild(for signal: Signal, with map: [Signal: Signal]) -> Self {
-			return .init(signalForChild: map[signal] ?? signal)
+			return .default(for: map[signal] ?? signal)
 		}
 		
 		public init(signalForChild: Signal?, allowOnParent: Bool = true, sendToProcessGroupOfChild: Bool = true, waitForChildDeathBeforeSendingToParent: Bool = true) {
