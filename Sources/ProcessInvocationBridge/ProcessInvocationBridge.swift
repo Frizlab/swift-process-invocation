@@ -63,23 +63,25 @@ struct ProcessInvocationBridge : ParsableCommand {
 			defer {buffer.deallocate()}
 			
 			let rawBuffer = UnsafeMutableRawBufferPointer(buffer)
-			guard try FileDescriptor.standardInput.read(into: rawBuffer) == rawBuffer.count else {
+			let readCount = try FileDescriptor.standardInput.read(into: rawBuffer)
+			guard readCount == rawBuffer.count else {
 				/* TODO: Use an actual error */
-				Self.logger.error("unexpected number of bytes read from stdin")
+				Self.logger.error("Unexpected number of bytes read from stdin.", metadata: ["expected_count": "\(rawBuffer.count)", "actual_count": "\(readCount)"])
 				throw ExitCode(rawValue: 1)
 			}
 			let nFds = buffer.baseAddress!.pointee
-			Self.logger.trace("Will receive \(nFds) fds")
+			Self.logger.trace("Will receive fds.", metadata: ["fd_count": "\(nFds)"])
 			
 			/* Then we read the fds */
 			for _ in 0..<nFds {
 				let (receivedFd, destinationFd) = try receiveFd(from: FileDescriptor.standardInput.rawValue)
-				Self.logger.trace("Received fd \(receivedFd), with expected destination fd \(destinationFd))")
+				Self.logger.trace("Received fd.", metadata: ["received_fd": "\(receivedFd)", "expected_destination_fd": "\(destinationFd)"])
 				/* As we have not closed any received fd yet, it should not be possible to received the same fd twice. */
 				assert(receivedFdToDestinationFd[receivedFd] == nil)
 				
 				if let oldReceivedFd = destinationFdToReceivedFd[destinationFd] {
-					Self.logger.warning("Internal Launcher: Received expected destination fd \(destinationFd) more than once! Caller did a mistake. Latest received fd (\(receivedFd) for now) wins.")
+					Self.logger.warning("Internal Launcher: Received an expected destination fd more than once! Caller did a mistake. Latest received fd wins.",
+											  metadata: ["expected_destination_fd": "\(destinationFd)", "latest_received_fd_to_date": "\(receivedFd)"])
 					
 					/* We should close the old fd as we won’t be using it at all. */
 					try FileDescriptor(rawValue: oldReceivedFd).close()
@@ -93,7 +95,7 @@ struct ProcessInvocationBridge : ParsableCommand {
 				receivedFdToDestinationFd[receivedFd] = destinationFd
 				destinationFdToReceivedFd[destinationFd] = receivedFd
 			}
-			Self.logger.trace("Received all fds")
+			Self.logger.trace("Received all fds.")
 		}
 		
 		/* We may modify destinationFdToReceivedFd values, so no (key, value) iteration type. */
@@ -131,7 +133,7 @@ struct ProcessInvocationBridge : ParsableCommand {
 		}
 		
 		try withCStrings([toolName] + toolArguments, scoped: { cargs in
-			Self.logger.trace("exec’ing \(toolName)")
+			Self.logger.trace("exec’ing.", metadata: ["executable": "\(toolName)"])
 			let ret: Int32
 			if usePath {
 #if !os(Linux)
@@ -183,7 +185,7 @@ struct ProcessInvocationBridge : ParsableCommand {
 				ret = execv(toolName, cargs)
 			}
 			assert(ret != 0, "exec should not return if it was successful.")
-			Self.logger.error("Error running executable \(toolName): \(Errno(rawValue: errno).description)")
+			Self.logger.error("Error running executable.", metadata: ["executabl": "\(toolName)", "error": "\(Errno(rawValue: errno))"])
 			/* TODO: Is this the exit code we really want? */throw ExitCode(errno)
 		})
 		
@@ -228,7 +230,7 @@ struct ProcessInvocationBridge : ParsableCommand {
 			 *    let ok = (receivedBytes == 0 || errno == ECONNRESET)
 			 * And we returned nil if ok was true. */
 			/* TODO: Is it ok to log in this context? I’d say probably yeah, but too tired to validate now. */
-			Self.logger.error("cannot read from socket: \(Errno(rawValue: errno))")
+			Self.logger.error("Cannot read from socket.", metadata: ["error": "\(Errno(rawValue: errno))"])
 			/* TODO: Use an actual error */throw ExitCode(rawValue: 1)
 		}
 		
