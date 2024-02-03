@@ -4,8 +4,9 @@ import PackageDescription
 import Foundation
 
 
+/* ⚠️ Do not use the concurrency check flags in a release! */
 let          noSwiftSettings: [SwiftSetting] = []
-let concurrencySwiftSettings: [SwiftSetting] = [.unsafeFlags(["-Xfrontend", "-warn-concurrency", "-Xfrontend", "-enable-actor-data-race-checks"])]
+//let concurrencySwiftSettings: [SwiftSetting] = [.unsafeFlags(["-Xfrontend", "-warn-concurrency", "-Xfrontend", "-enable-actor-data-race-checks"])]
 
 
 /* Detect if we need the eXtenderZ.
@@ -103,13 +104,13 @@ let package = Package(
 		}(), swiftSettings: noSwiftSettings))
 		
 		/* Some complex macros exported as functions to be used in Swift. */
-		res.append(.target(name: "CMacroExports", swiftSettings: concurrencySwiftSettings))
+		res.append(.target(name: "CMacroExports", swiftSettings: noSwiftSettings))
 		if useXtenderZ {
-			res.append(.target(name: "CNSTaskHelptender", dependencies: [.product(name: "eXtenderZ-static", package: "eXtenderZ")], swiftSettings: concurrencySwiftSettings))
+			res.append(.target(name: "CNSTaskHelptender", dependencies: [.product(name: "eXtenderZ-static", package: "eXtenderZ")], swiftSettings: noSwiftSettings))
 		}
 		if needsGNUSourceExports {
-			res.append(.target(name: "CGNUSourceExports", swiftSettings: concurrencySwiftSettings))
-			res.append(.target(name: "CGNUSourceExportsForTests", swiftSettings: concurrencySwiftSettings))
+			res.append(.target(name: "CGNUSourceExports", swiftSettings: noSwiftSettings))
+			res.append(.target(name: "CGNUSourceExportsForTests", swiftSettings: noSwiftSettings))
 		}
 		
 		return res
