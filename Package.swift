@@ -103,13 +103,13 @@ let package = Package(
 		}(), swiftSettings: noSwiftSettings))
 		
 		/* Some complex macros exported as functions to be used in Swift. */
-		res.append(.target(name: "CMacroExports", swiftSettings: noSwiftSettings))
+		res.append(.target(name: "CMacroExports", swiftSettings: concurrencySwiftSettings))
 		if useXtenderZ {
-			res.append(.target(name: "CNSTaskHelptender", dependencies: [.product(name: "eXtenderZ-static", package: "eXtenderZ")], swiftSettings: noSwiftSettings))
+			res.append(.target(name: "CNSTaskHelptender", dependencies: [.product(name: "eXtenderZ-static", package: "eXtenderZ")], swiftSettings: concurrencySwiftSettings))
 		}
 		if needsGNUSourceExports {
-			res.append(.target(name: "CGNUSourceExports", swiftSettings: noSwiftSettings))
-			res.append(.target(name: "CGNUSourceExportsForTests", swiftSettings: noSwiftSettings))
+			res.append(.target(name: "CGNUSourceExports", swiftSettings: concurrencySwiftSettings))
+			res.append(.target(name: "CGNUSourceExportsForTests", swiftSettings: concurrencySwiftSettings))
 		}
 		
 		return res
