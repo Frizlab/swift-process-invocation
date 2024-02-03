@@ -4,8 +4,8 @@ import PackageDescription
 import Foundation
 
 
-let swiftSettings: [SwiftSetting] = []
-//let swiftSettings: [SwiftSetting] = [.unsafeFlags(["-Xfrontend", "-warn-concurrency", "-Xfrontend", "-enable-actor-data-race-checks"])]
+let          noSwiftSettings: [SwiftSetting] = []
+let concurrencySwiftSettings: [SwiftSetting] = [.unsafeFlags(["-Xfrontend", "-warn-concurrency", "-Xfrontend", "-enable-actor-data-race-checks"])]
 
 
 /* Detect if we need the eXtenderZ.
@@ -70,7 +70,7 @@ let package = Package(
 			/* The ProcessInvocation depends (indirectly) on the bridge. */
 			res.append(.target(name: "ProcessInvocationBridge"))
 			return res
-		}(), swiftSettings: swiftSettings))
+		}(), swiftSettings: noSwiftSettings))
 		
 		res.append(.executableTarget(name: "ProcessInvocationBridge", dependencies: {
 			var res = [Target.Dependency]()
@@ -85,7 +85,7 @@ let package = Package(
 				res.append(.target(name: "CGNUSourceExports"))
 			}
 			return res
-		}(), swiftSettings: swiftSettings))
+		}(), swiftSettings: noSwiftSettings))
 		
 		res.append(.testTarget(name: "ProcessInvocationTests", dependencies: {
 			var res = [Target.Dependency]()
@@ -100,16 +100,16 @@ let package = Package(
 				res.append(.target(name: "CGNUSourceExportsForTests"))
 			}
 			return res
-		}(), swiftSettings: swiftSettings))
+		}(), swiftSettings: noSwiftSettings))
 		
 		/* Some complex macros exported as functions to be used in Swift. */
-		res.append(.target(name: "CMacroExports", swiftSettings: swiftSettings))
+		res.append(.target(name: "CMacroExports", swiftSettings: noSwiftSettings))
 		if useXtenderZ {
-			res.append(.target(name: "CNSTaskHelptender", dependencies: [.product(name: "eXtenderZ-static", package: "eXtenderZ")], swiftSettings: swiftSettings))
+			res.append(.target(name: "CNSTaskHelptender", dependencies: [.product(name: "eXtenderZ-static", package: "eXtenderZ")], swiftSettings: noSwiftSettings))
 		}
 		if needsGNUSourceExports {
-			res.append(.target(name: "CGNUSourceExports", swiftSettings: swiftSettings))
-			res.append(.target(name: "CGNUSourceExportsForTests", swiftSettings: swiftSettings))
+			res.append(.target(name: "CGNUSourceExports", swiftSettings: noSwiftSettings))
+			res.append(.target(name: "CGNUSourceExportsForTests", swiftSettings: noSwiftSettings))
 		}
 		
 		return res
