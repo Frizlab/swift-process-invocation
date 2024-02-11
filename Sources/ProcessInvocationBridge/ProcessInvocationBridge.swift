@@ -27,7 +27,7 @@ private let processInvocationBridgeName = "swift-process-invocation-bridge"
 struct ProcessInvocationBridge : ParsableCommand {
 	
 	static var configuration = CommandConfiguration(
-		commandName: "swift-process-invocation-bridge",
+		commandName: processInvocationBridgeName,
 		abstract: "Internal launcher for swift-process-invocation which receives a fd before launching the tool."
 	)
 	
