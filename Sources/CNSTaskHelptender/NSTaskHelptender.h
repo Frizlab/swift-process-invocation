@@ -10,14 +10,14 @@ NS_ASSUME_NONNULL_BEGIN
  *    <https://news.ycombinator.com/item?id=13437182>. */
 typedef void SPITaskTerminationSignature(NSTask * _Nonnull);
 
-@protocol SPITaskExtender <HPNExtender>
+@protocol SPITaskExtender <XTZExtender>
 
 @property(readonly) SPITaskTerminationSignature ^additionalCompletionHandler;
 
 @end
 
 
-@interface SPITaskHelptender : NSTask <HPNHelptender>
+@interface SPITaskHelptender : NSTask <XTZHelptender>
 
 @end
 

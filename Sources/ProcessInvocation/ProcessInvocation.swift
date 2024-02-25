@@ -674,7 +674,7 @@ public struct ProcessInvocation : AsyncSequence {
 			g.leave()
 		}
 #if canImport(eXtenderZ)
-		HPNCheckedAddExtender(p, XcodeToolsProcessExtender(additionalTerminationHandler))
+		XTZCheckedAddExtender(p, XcodeToolsProcessExtender(additionalTerminationHandler))
 #else
 		p.privateTerminationHandler = additionalTerminationHandler
 #endif

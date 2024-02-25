@@ -12,11 +12,11 @@
       },
       {
         "package": "eXtenderZ",
-        "repositoryURL": "https://github.com/xcode-actions/eXtenderZ.git",
+        "repositoryURL": "https://github.com/Frizlab/eXtenderZ.git",
         "state": {
           "branch": null,
-          "revision": "c59e94553295a7e8a0c3ce1465a2bed073cb6ca9",
-          "version": "1.0.7"
+          "revision": "6df281911c5bb6095a7988e3b60986ef91536ec3",
+          "version": "2.0.0"
         }
       },
       {

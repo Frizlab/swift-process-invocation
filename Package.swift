@@ -44,7 +44,7 @@ let package = Package(
 		res.append(.package(url: "https://github.com/apple/swift-system.git",                  from: "1.0.0"))
 #endif
 		if useXtenderZ {
-			res.append(.package(url: "https://github.com/xcode-actions/eXtenderZ.git",          from: "1.0.7"))
+			res.append(.package(url: "https://github.com/Frizlab/eXtenderZ.git",                from: "2.0.0"))
 		}
 		return res
 	}(),
