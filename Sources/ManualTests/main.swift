@@ -87,6 +87,7 @@ func isValidFileDescriptor(_ fd: FileDescriptor) -> Bool {
 }
 
 func getFilePath(from fd: FileDescriptor) throws -> String {
+#if canImport(Darwin)
 	let filePath = UnsafeMutableRawPointer.allocate(byteCount: Int(PATH_MAX), alignment: MemoryLayout<Int8>.alignment)
 	defer {filePath.deallocate()}
 	
@@ -94,6 +95,9 @@ func getFilePath(from fd: FileDescriptor) throws -> String {
 		throw Errno(rawValue: errno)
 	}
 	return String(cString: UnsafePointer(filePath.assumingMemoryBound(to: CChar.self)))
+#else
+	throw Errno.notSupported
+#endif
 }
 
 func isFileDescriptorBlocking(_ fd: FileDescriptor) throws -> Bool {
