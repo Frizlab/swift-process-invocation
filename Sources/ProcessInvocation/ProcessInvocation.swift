@@ -67,9 +67,11 @@ import CMacroExports
  Additionally on Linux the fds will be set non-blocking
   (clients should not care as they have given up ownership of the fd, but it’s still good to know IMHO).
  
- - Important: AFAICT the absolute ref for `PATH` resolution is [from exec function in FreeBSD source](https://opensource.apple.com/source/Libc/Libc-1439.100.3/gen/FreeBSD/exec.c.auto.html) (end of file).
+ - Important: AFAICT the absolute ref for `PATH` resolution is [from exec function in FreeBSD source](<https://opensource.apple.com/source/Libc/Libc-1439.100.3/gen/FreeBSD/exec.c.auto.html>) (end of file).
  Sadly `Process` does not report the actual errors and seem to always report “File not found” errors when the executable cannot be run.
- So we do not fully emulate exec’s behavior. */
+ So we do not fully emulate exec’s behavior. 
+ 
+ One final note: I recently discovered [this](<https://forums.developer.apple.com/forums/thread/690310>) by eskimo which does some of what we do in this struct. */
 public struct ProcessInvocation : AsyncSequence {
 	
 	public typealias ProcessOutputHandler = (_ rawLineWithSource: RawLineWithSource, _ signalEndOfInterestForStream: () -> Void, _ process: Process) -> Void
@@ -140,7 +142,7 @@ public struct ProcessInvocation : AsyncSequence {
 	public var workingDirectory: URL? = nil
 	public var environment: [String: String]? = nil
 	
-	public var stdinRedirect: InputRedirectMode = .none
+	public var stdinRedirect: InputRedirectMode = .none()
 	public var stdoutRedirect: OutputRedirectMode = .capture
 	public var stderrRedirect: OutputRedirectMode = .capture
 	
@@ -391,9 +393,9 @@ public struct ProcessInvocation : AsyncSequence {
 	 You retrieve the process and a dispatch group you can wait on to be notified when the process and all of its outputs are done.
 	 You can also set the termination handler of the process, but you should wait on the dispatch group to be sure all of the outputs have finished streaming. */
 	public func invoke(outputHandler: @escaping (_ result: Result<RawLineWithSource, Error>, _ signalEndOfInterestForStream: () -> Void, _ process: Process) -> Void, terminationHandler: ((_ process: Process) -> Void)? = nil) throws -> (Process, DispatchGroup) {
-		assert(!fileDescriptorsToSend.values.contains(.standardInput),   "Standard input must be modified using stdinRedirect")
-		assert(!fileDescriptorsToSend.values.contains(.standardOutput), "Standard output must be modified using stdoutRedirect")
-		assert(!fileDescriptorsToSend.values.contains(.standardError),   "Standard error must be modified using stderrRedirect")
+		assert(!fileDescriptorsToSend.keys.contains(.standardInput),   "Standard input must be modified using stdinRedirect")
+		assert(!fileDescriptorsToSend.keys.contains(.standardOutput), "Standard output must be modified using stdoutRedirect")
+		assert(!fileDescriptorsToSend.keys.contains(.standardError),   "Standard error must be modified using stderrRedirect")
 		
 		let g = DispatchGroup()
 #if canImport(eXtenderZ)
@@ -418,11 +420,17 @@ public struct ProcessInvocation : AsyncSequence {
 		if let environment      = environment      {p.environment         = environment}
 		if let workingDirectory = workingDirectory {p.currentDirectoryURL = workingDirectory}
 		
+		var fdWhoseFgPgIDShouldBeRevertedOnError: FileDescriptor?
 		var fdsToCloseInCaseOfError = Set<FileDescriptor>()
 		var fdToSwitchToBlockingInCaseOfError = Set<FileDescriptor>()
 		var countOfDispatchGroupLeaveInCaseOfError = 0
 		var signalCleaningOnError: (() -> Void)?
 		func cleanupAndThrow(_ error: Error) throws -> Never {
+			if let fdWhoseFgPgIDShouldBeRevertedOnError {
+				if tcsetpgrp(fdWhoseFgPgIDShouldBeRevertedOnError.rawValue, getpgrp()) != 0 && errno != ENOTTY {
+					Conf.logger?.error("Failed setting foreground process group ID of controlling terminal of stdin back to our process group.")
+				}
+			}
 			signalCleaningOnError?()
 			for _ in 0..<countOfDispatchGroupLeaveInCaseOfError {g.leave()}
 			
@@ -449,11 +457,33 @@ public struct ProcessInvocation : AsyncSequence {
 			}
 		}
 		
+		let fdWhoseFgPgIDShouldBeSet: FileDescriptor?
 		var fdsToCloseAfterRun = Set<FileDescriptor>()
 		var fdRedirects = [FileDescriptor: FileDescriptor]()
 		var outputFileDescriptors = additionalOutputFileDescriptors
+		switch stdinRedirect {
+			case .none(let setFgPgID): 
+				p.standardInput = FileHandle.standardInput /* Already the case in theory as it is the default, but let’s be explicit. */
+				fdWhoseFgPgIDShouldBeSet = (setFgPgID ? FileDescriptor.standardInput : nil)
+				
+			case .fromNull:
+				p.standardInput = nil
+				fdWhoseFgPgIDShouldBeSet = nil
+				
+			case .fromFd(let fd, let shouldClose, let setFgPgID):
+				p.standardInput = FileHandle(fileDescriptor: fd.rawValue, closeOnDealloc: false)
+				if shouldClose {fdsToCloseAfterRun.insert(fd)}
+				fdWhoseFgPgIDShouldBeSet = (setFgPgID ? FileDescriptor.standardInput : nil)
+				
+			case .sendFromReader(let reader):
+				let fd = try Self.readFdOfPipeForStreaming(dataFromReader: reader, maxCacheSize: 32 * 1024 * 1024)
+				fdsToCloseAfterRun.insert(fd)
+				p.standardInput = FileHandle(fileDescriptor: fd.rawValue, closeOnDealloc: false)
+				/* TODO: If we fail later, should the write end of the pipe be closed? */
+				fdWhoseFgPgIDShouldBeSet = nil
+		}
 		switch stdoutRedirect {
-			case .none: (/*nop*/)
+			case .none: p.standardOutput = FileHandle.standardOutput /* Already the case in theory as it is the default, but let’s be explicit. */
 			case .toNull: p.standardOutput = nil
 			case .toFd(let fd, let shouldClose):
 				p.standardOutput = FileHandle(fileDescriptor: fd.rawValue, closeOnDealloc: false)
@@ -474,7 +504,7 @@ public struct ProcessInvocation : AsyncSequence {
 				p.standardOutput = FileHandle(fileDescriptor: fdForWriting.rawValue, closeOnDealloc: false)
 		}
 		switch stderrRedirect {
-			case .none: (/*nop*/)
+			case .none: p.standardError = FileHandle.standardError /* Already the case in theory as it is the default, but let’s be explicit. */
 			case .toNull: p.standardError = nil
 			case .toFd(let fd, let shouldClose):
 				p.standardError = FileHandle(fileDescriptor: fd.rawValue, closeOnDealloc: false)
@@ -565,17 +595,6 @@ public struct ProcessInvocation : AsyncSequence {
 		
 		let actualExecutablePath: FilePath
 		if fileDescriptorsToSend.isEmpty {
-			switch stdinRedirect {
-				case .none: p.standardInput = FileHandle.standardInput
-				case .fromNull: p.standardInput = nil
-				case .sendFromReader(let reader):
-					let fd = try Self.readFdOfPipeForStreaming(dataFromReader: reader, maxCacheSize: 32 * 1024 * 1024)
-					p.standardInput = FileHandle(fileDescriptor: fd.rawValue, closeOnDealloc: false)
-					fdsToCloseAfterRun.insert(fd)
-				case .fromFd(let fd, let shouldClose):
-					p.standardInput = FileHandle(fileDescriptor: fd.rawValue, closeOnDealloc: false)
-					if shouldClose {fdsToCloseAfterRun.insert(fd)}
-			}
 			p.arguments = args
 			actualExecutablePath = executable
 			forcedPreprendedPATH = nil
@@ -620,6 +639,10 @@ public struct ProcessInvocation : AsyncSequence {
 			fdsToCloseInCaseOfError.insert(fd0)
 			fdsToCloseInCaseOfError.insert(fd1)
 			
+			/* We must send the modified stdin in the list of file descriptors to send!
+			 * (Before modifying p.standardInput…) */
+			fileDescriptorsToSend[.standardInput] = (p.standardInput as? FileHandle).flatMap{ .init(rawValue: $0.fileDescriptor) }
+			
 			let cwd = FilePath(FileManager.default.currentDirectoryPath)
 			if !cwd.isAbsolute {Conf.logger?.error("currentDirectoryPath is not abolute! Madness may ensue.", metadata: ["path": "\(cwd)"])}
 			/* We make all paths absolute, and filter the ones containing colons. */
@@ -629,20 +652,6 @@ public struct ProcessInvocation : AsyncSequence {
 			p.arguments = [usePATH ? "--use-path" : "--no-use-path"] + PATHoption + [executable.string] + args
 			p.standardInput = FileHandle(fileDescriptor: fd1.rawValue, closeOnDealloc: false)
 			fdToSendFds = fd0
-			
-			/* We must send the modified stdin in the list of file descriptors to send! */
-			switch stdinRedirect {
-				case .none: fileDescriptorsToSend[.standardInput] = .standardInput
-				case .fromNull:
-					let fd = try Self.readFdOfPipeForStreaming(dataFromReader: DataReader(data: Data()), maxCacheSize: 1)
-					fileDescriptorsToSend[.standardInput] = fd
-				case .sendFromReader(let reader):
-					let fd = try Self.readFdOfPipeForStreaming(dataFromReader: reader, maxCacheSize: 32 * 1024 * 1024)
-					fileDescriptorsToSend[.standardInput] = fd
-				case .fromFd(let fd, let shouldClose):
-					assert(shouldClose, "Not giving ownership of fd to send is not supported (from stdin redirect).")
-					fileDescriptorsToSend[.standardInput] = fd
-			}
 		}
 		
 		let delayedSigations = try cleanupIfThrows{ try SigactionDelayer_Unsig.registerDelayedSigactions(signalsToProcess, handler: { (signal, handler) in
@@ -688,6 +697,14 @@ public struct ProcessInvocation : AsyncSequence {
 		
 		let additionalTerminationHandler: (Process) -> Void = { _ in
 			Conf.logger?.debug("Called in termination handler of process.")
+			if let fdWhoseFgPgIDShouldBeSet {
+				/* Let’s revert the fg pg ID back to our pg ID. */
+				if tcsetpgrp(fdWhoseFgPgIDShouldBeSet.rawValue, getpgrp()) != 0 && errno != ENOTTY {
+					Conf.logger?.error("Failed setting foreground process group ID of controlling terminal of stdin back to our process group.")
+				} else {
+					fdWhoseFgPgIDShouldBeRevertedOnError = fdWhoseFgPgIDShouldBeSet
+				}
+			}
 			signalCleanupHandler()
 			g.leave()
 		}
@@ -737,6 +754,12 @@ public struct ProcessInvocation : AsyncSequence {
 			} else {
 				p.executableURL = URL(fileURLWithPath: actualExecutablePath.string)
 				try p.run()
+			}
+			if let fdWhoseFgPgIDShouldBeSet {
+				if tcsetpgrp(fdWhoseFgPgIDShouldBeSet.rawValue, getpgid(p.processIdentifier)) != 0 && errno != ENOTTY {
+					/* TODO: We should definitely use a more explicit error. Actually the whole systemError error should probably be removed and replaced by more precise errors (which can still take an Errno as an argument). */
+					throw Err.systemError(Errno(rawValue: errno))
+				}
 			}
 			/* Decrease count of group leaves needed because now that the process is launched, its termination handler will be called. */
 			countOfDispatchGroupLeaveInCaseOfError -= 1

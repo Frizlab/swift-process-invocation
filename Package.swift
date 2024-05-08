@@ -114,7 +114,11 @@ let package = Package(
 		}
 		
 		/* Some manual tests for stdin redirect behavior. */
-		res.append(.executableTarget(name: "ManualTests", dependencies: ["ProcessInvocation"], swiftSettings: noSwiftSettings))
+		res.append(.executableTarget(name: "ManualTests", dependencies: [
+			.target(name: "ProcessInvocation"), /* <- Tested package */
+			.product(name: "CLTLogger",     package: "clt-logger"),
+			.product(name: "Logging",       package: "swift-log")
+		], swiftSettings: noSwiftSettings))
 		
 		return res
 	}()
