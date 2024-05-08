@@ -548,7 +548,7 @@ final class ProcessInvocationTests : XCTestCase {
 			/* LINUXASYNC STOP --------- */
 			
 			let (fdRead, fdWrite) = try ProcessInvocation.unownedPipe()
-			let invocation1 = ProcessInvocation("printf", "%s", "1+2", stdoutRedirect: .toFd(fdWrite, giveOwnership: true))
+			let invocation1 = ProcessInvocation("printf", "%s\n", "1+2", stdoutRedirect: .toFd(fdWrite, giveOwnership: true))
 			_ = try invocation1.invoke(outputHandler: { _, _, _ in })
 			let invocation2 = ProcessInvocation("bc", stdinRedirect: .sendFromReader(FileDescriptorReader(stream: fdRead, bufferSize: 3, bufferSizeIncrement: 1)))
 			let output = try await invocation2.invokeAndGetOutput()
