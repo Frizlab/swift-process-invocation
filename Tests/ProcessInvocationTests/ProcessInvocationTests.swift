@@ -145,7 +145,7 @@ final class ProcessInvocationTests : XCTestCase {
 	
 	func testProcessTerminationHandler() throws {
 		var wentIn = false
-		let (_, g) = try ProcessInvocation("/bin/cat", signalsToProcess: []).invoke(outputHandler: { _,_,_ in }, terminationHandler: { p in
+		let (_, g) = try ProcessInvocation("/bin/cat", stdinRedirect: .fromNull, signalsToProcess: []).invoke(outputHandler: { _,_,_ in }, terminationHandler: { p in
 			wentIn = true
 		})
 		
