@@ -204,6 +204,54 @@ final class ProcessInvocationTests : XCTestCase {
 		}
 	}
 	
+	func testStandardFdCaptureButWithSentFds() throws {
+		for _ in 0..<3 {
+			let scriptURL = Self.scriptsPath.appending("write-500-lines.swift")
+			
+			let n = 50
+			
+			/* Do **NOT** use a `Pipe` object! (Or dup the fds you get from it).
+			 * Pipe closes both ends of the pipe on dealloc, but we need to close one at a specific time and leave the other open
+			 * (it is closed by the invoke function). */
+			let (fdRead, fdWrite) = try ProcessInvocation.unownedPipe()
+			
+			var count = 0
+			let pi = ProcessInvocation(
+				scriptURL, "\(n)", "\(FileDescriptor.standardOutput.rawValue)",
+				signalsToProcess: [],
+				fileDescriptorsToSend: [fdWrite: fdWrite], additionalOutputFileDescriptors: [fdRead]
+			)
+			let (p, g) = try pi.invoke{ lineResult, _, _ in
+				guard let rawLine = try? lineResult.get() else {
+					return XCTFail("got output error: \(lineResult)")
+				}
+				guard rawLine.fd != FileDescriptor.standardError else {
+					/* When a Swift script is launched, swift can output some shit on stderr… */
+					NSLog("%@", "Got err from script: \(rawLine.line)")
+					return
+				}
+				
+				XCTAssertEqual(rawLine.fd, .standardOutput)
+				XCTAssertEqual(rawLine.line, Data("I will not leave books on the ground.".utf8))
+				XCTAssertEqual(rawLine.eol, Data("\n".utf8))
+				Thread.sleep(forTimeInterval: 0.05) /* Greater than wait time in script. */
+				if count == 0 {
+					Thread.sleep(forTimeInterval: 3)
+				}
+				
+				count += 1
+			}
+			
+			p.waitUntilExit() /* Not needed anymore, but should not hurt either. */
+			
+			XCTAssertLessThan(count, n)
+			
+			let r = g.wait(timeout: .now() + .seconds(7))
+			XCTAssertEqual(r, .success)
+			XCTAssertEqual(count, n)
+		}
+	}
+	
 	/* This disabled (disabled because too long) test and some variants of it have allowed the discovery of some bugs:
 	 *   - Leaks of file descriptors;
 	 *   - Pipe fails to allocate new fds, but Pipe object init is non-fallible in Swift…
