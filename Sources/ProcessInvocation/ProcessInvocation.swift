@@ -472,10 +472,14 @@ public struct ProcessInvocation : AsyncSequence {
 				
 			case .fromFd(let fd, let shouldClose, let setFgPgID):
 				p.standardInput = FileHandle(fileDescriptor: fd.rawValue, closeOnDealloc: false)
-				if shouldClose {fdsToCloseAfterRun.insert(fd)}
+				if shouldClose {
+					assert(fileDescriptorsToSend.isEmpty, "Giving ownership to fd on stdin is not allowed when launching the process via the bridge. This is because stdin has to be sent via the bridge and we get only pain and race conditions to properly close the fd.")
+					fdsToCloseAfterRun.insert(fd)
+				}
 				fdWhoseFgPgIDShouldBeSet = (setFgPgID ? FileDescriptor.standardInput : nil)
 				
 			case .sendFromReader(let reader):
+				assert(fileDescriptorsToSend.isEmpty, "Sending data to stdin via a reader is not allowed when launching the process via the bridge. This is because stdin has to be sent via the bridge and we get only pain and race conditions to properly close the fd.")
 				let fd = try Self.readFdOfPipeForStreaming(dataFromReader: reader, maxCacheSize: 32 * 1024 * 1024)
 				fdsToCloseAfterRun.insert(fd)
 				p.standardInput = FileHandle(fileDescriptor: fd.rawValue, closeOnDealloc: false)

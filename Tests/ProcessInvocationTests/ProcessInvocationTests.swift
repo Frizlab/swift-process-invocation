@@ -540,37 +540,6 @@ final class ProcessInvocationTests : XCTestCase {
 		/* LINUXASYNC STOP --------- */
 	}
 	
-	func testSendDataToStdinWithFdsToSend() throws {
-		/* LINUXASYNC START --------- */
-		let group = DispatchGroup()
-		group.enter()
-		Task{do{
-			/* LINUXASYNC STOP --------- */
-			
-			let (_, fdWrite) = try ProcessInvocation.unownedPipe()
-			
-			let data = Data([0, 1, 2, 3, 4, 5])
-			let (outputs, exitStatus, exitReason) = try await ProcessInvocation(
-				"/bin/cat", stdinRedirect: .send(data),
-				signalsToProcess: [],
-				fileDescriptorsToSend: [fdWrite: fdWrite],
-				lineSeparators: .none
-			).invokeAndGetRawOutput(checkValidTerminations: false)
-			
-			XCTAssertEqual(exitStatus, 0)
-			XCTAssertEqual(exitReason, .exit)
-			
-			XCTAssertEqual(outputs.count, 1)
-			XCTAssertFalse(outputs.contains(where: { $0.fd == .standardError }))
-			XCTAssertEqual(outputs.first?.line, data)
-			
-			/* LINUXASYNC START --------- */
-			group.leave()
-		} catch {XCTFail("Error thrown during async test: \(error)"); group.leave()}}
-		group.wait()
-		/* LINUXASYNC STOP --------- */
-	}
-	
 	/* Works, but so slow. */
 //	func testSendBiggerDataToStdin() throws {
 //		/* LINUXASYNC START --------- */

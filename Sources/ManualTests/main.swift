@@ -67,7 +67,7 @@ do {
 //		}
 //		""", stdinRedirect: .none/*, fileDescriptorsToSend: [fd: fd]*/
 //	)
-//	let pi = ProcessInvocation("/bin/cat", stdinRedirect: .send(Data("yo".utf8)), fileDescriptorsToSend: [fd: fd])
+//	let pi = ProcessInvocation("/bin/cat", stdinRedirect: .send(Data("yo".utf8)))
 	let pi = ProcessInvocation("/bin/cat", stdinRedirect: .none(), stdoutRedirect: .none, stderrRedirect: .none, fileDescriptorsToSend: [fd: fd])
 	for try await line in pi {
 		print("From cat: \(line.strLineOrHex())")

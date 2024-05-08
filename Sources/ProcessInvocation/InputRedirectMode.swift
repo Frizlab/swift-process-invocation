@@ -21,12 +21,18 @@ public enum InputRedirectMode {
 	case none(setFgPgID: Bool = true)
 	/** This is the equivalent of using ``InputRedirectMode/send(_:)`` with an empty data. */
 	case fromNull
-	/** Send the given data to the subprocess (done with a pipe). */
+	/** 
+	 Send the given data to the subprocess (done with a pipe).
+	 
+	 - Important: This is not supported when launching the process via the bridge (asserted). */
 	case sendFromReader(DataReader)
 	/**
 	 The stream should be redirected from this fd.
+	 
 	 If `giveOwnership` is true, the fd will be closed when the process has run.
-	 Otherwise it is your responsability to close it when needed. */
+	 Otherwise it is your responsability to close it when needed. 
+	 
+	 - Important: Setting `giveOwnership` is not supported when launching the process via the bridge (asserted). */
 	case fromFd(FileDescriptor, giveOwnership: Bool, setFgPgID: Bool = false)
 	
 	public static func send(_ data: Data) -> Self {
