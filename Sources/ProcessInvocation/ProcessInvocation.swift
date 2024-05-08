@@ -12,7 +12,7 @@ import eXtenderZ
 import SignalHandling
 import StreamReader
 
-#if os(Linux)
+#if !canImport(Darwin)
 import CGNUSourceExports
 #endif
 import CMacroExports
@@ -494,13 +494,13 @@ public struct ProcessInvocation : AsyncSequence {
 				p.standardError = FileHandle(fileDescriptor: fdForWriting.rawValue, closeOnDealloc: false)
 		}
 		
-#if !os(Linux)
+#if canImport(Darwin)
 		let platformSpecificInfo: Void = ()
 #else
 		var platformSpecificInfo = StreamReadPlatformSpecificInfo()
 #endif
 		
-#if os(Linux)
+#if !canImport(Darwin)
 		for fd in outputFileDescriptors {
 			/* Let’s see if the fd is a master pt or not.
 			 * This is needed to detect EOF properly and not throw an error when reading from a master pt (see handleProcessOutput for more info). */
@@ -603,7 +603,7 @@ public struct ProcessInvocation : AsyncSequence {
 			let sv = UnsafeMutablePointer<CInt>.allocate(capacity: 2)
 			sv.initialize(repeating: -1, count: 2)
 			defer {sv.deallocate()}
-#if !os(Linux)
+#if canImport(Darwin)
 			let sockDgram = SOCK_DGRAM
 #else
 			let sockDgram = Int32(SOCK_DGRAM.rawValue)
@@ -838,7 +838,7 @@ public struct ProcessInvocation : AsyncSequence {
 	   MARK: - Private
 	   *************** */
 	
-#if !os(Linux)
+#if canImport(Darwin)
 	private typealias StreamReadPlatformSpecificInfo = Void
 #else
 	private struct StreamReadPlatformSpecificInfo {
@@ -905,7 +905,7 @@ public struct ProcessInvocation : AsyncSequence {
 	) {
 		do {
 			let toRead = Int(Swift.min(Swift.max(estimatedBytesAvailable, 1), UInt(Int.max)))
-#if !os(Linux)
+#if canImport(Darwin)
 			/* We do not need to check the number of bytes actually read.
 			 * If EOF was reached (nothing was read),
 			 *  the stream reader will remember it, and
@@ -1008,7 +1008,7 @@ public struct ProcessInvocation : AsyncSequence {
 		let buf = UnsafeMutableRawPointer.allocate(byteCount: SPI_CMSG_SPACE(sizeOfFd), alignment: MemoryLayout<cmsghdr>.alignment)
 		defer {buf.deallocate()}
 		
-#if !os(Linux)
+#if canImport(Darwin)
 		msg.msg_control = UnsafeMutableRawPointer(buf)
 		msg.msg_controllen = socklen_t(SPI_CMSG_SPACE(sizeOfFd))
 #else
@@ -1020,7 +1020,7 @@ public struct ProcessInvocation : AsyncSequence {
 			throw Err.internalError("CMSG_FIRSTHDR returned nil.")
 		}
 		
-#if !os(Linux)
+#if canImport(Darwin)
 		cmsg.pointee.cmsg_type = SCM_RIGHTS
 		cmsg.pointee.cmsg_level = SOL_SOCKET
 #else
@@ -1028,7 +1028,7 @@ public struct ProcessInvocation : AsyncSequence {
 		cmsg.pointee.cmsg_level = SOL_SOCKET
 #endif
 		
-#if !os(Linux)
+#if canImport(Darwin)
 		cmsg.pointee.cmsg_len = socklen_t(SPI_CMSG_LEN(sizeOfFd))
 #else
 		cmsg.pointee.cmsg_len = Int(SPI_CMSG_LEN(sizeOfFd))

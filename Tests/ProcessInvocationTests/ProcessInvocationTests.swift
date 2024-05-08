@@ -302,7 +302,7 @@ final class ProcessInvocationTests : XCTestCase {
 			await tempAsyncAssertThrowsError(try await ProcessInvocation(spyScriptPath, usePATH: true,  customPATH: [Self.filesPath],                   signalsToProcess: []).invokeAndGetRawOutput())
 			await tempAsyncAssertNoThrow(try await ProcessInvocation(spyScriptPath,     usePATH: true,  customPATH: [Self.scriptsPath],                 signalsToProcess: []).invokeAndGetRawOutput())
 			await tempAsyncAssertNoThrow(try await ProcessInvocation(spyScriptPath,     usePATH: true,  customPATH: [Self.scriptsPath, Self.filesPath], signalsToProcess: []).invokeAndGetRawOutput())
-#if os(Linux)
+#if !canImport(Darwin)
 			/* On Linux, the error when trying to execute a non-executable file is correct (no permission), and so we don’t try next path available. */
 			await tempAsyncAssertThrowsError(try await ProcessInvocation(spyScriptPath, usePATH: true,  customPATH: [Self.filesPath, Self.scriptsPath], signalsToProcess: []).invokeAndGetRawOutput())
 #else

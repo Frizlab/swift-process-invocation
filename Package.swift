@@ -14,7 +14,7 @@ let          noSwiftSettings: [SwiftSetting] = []
  * See Process+Utils for reason why we use the eXtenderZ. */
 let useXtenderZ = (NSStringFromClass(Process().classForCoder) != "NSTask")
 /* Do we need the _GNU_SOURCE exports? This allows using execvpe on Linux. */
-#if !os(Linux)
+#if canImport(Darwin)
 let needsGNUSourceExports = false
 #else
 let needsGNUSourceExports = true

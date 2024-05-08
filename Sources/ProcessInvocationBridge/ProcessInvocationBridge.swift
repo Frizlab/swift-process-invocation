@@ -10,7 +10,7 @@ import CLTLogger
 import CMacroExports
 import Logging
 
-#if os(Linux)
+#if !canImport(Darwin)
 import CGNUSourceExports
 #endif
 
@@ -136,7 +136,7 @@ struct ProcessInvocationBridge : ParsableCommand {
 			Self.logger.trace("exec’ing.", metadata: ["executable": "\(toolName)"])
 			let ret: Int32
 			if usePath {
-#if !os(Linux)
+#if canImport(Darwin)
 				/* The P implementation of exec searches for the binary path in the given search path.
 				 * The v means we pass an array to exec (as opposed to the variadic exec variant, which is not available in Swift anyway). */
 				ret = execvP(toolName, path ?? _PATH_DEFPATH, cargs)
@@ -214,7 +214,7 @@ struct ProcessInvocationBridge : ParsableCommand {
 		defer {controlBuf.deallocate()}
 		controlBuf.update(repeating: 0, count: controlBufSize)
 		msg.msg_control = UnsafeMutableRawPointer(controlBuf)
-#if !os(Linux)
+#if canImport(Darwin)
 		msg.msg_controllen = socklen_t(controlBufSize)
 #else
 		msg.msg_controllen = Int(controlBufSize)
