@@ -40,9 +40,9 @@ import CMacroExports
  Some signals are forwarded by default.
  
  IMHO the signal forwarding method, though a bit more complex (in this case, a lot of the complexity is hidden by this object),
- is better than using the same PGID than the parent for the child.
+  is better than using the same PGID than the parent for the child.
  In a shell, if a long running process is launched from a bash script, and said bash script is killed using a signal
- (but from another process sending a signal, not from the tty), the child won’t be killed!
+  (but from another process sending a signal, not from the tty), the child won’t be killed!
  Using signal forwarding, it will.
  
  Some interesting links:
@@ -62,10 +62,10 @@ import CMacroExports
  It is true on the `main` branch though (2021-04-01).
  
  - Important: All of the `additionalOutputFileDescriptors` are closed when the end of their respective stream are reached
- (i.e. the function takes “ownership” of the file descriptors).
+  (i.e. the function takes “ownership” of the file descriptors).
  Maybe later we’ll add an option not to close at end of the stream.
  Additionally on Linux the fds will be set non-blocking
- (clients should not care as they have given up ownership of the fd, but it’s still good to know IMHO).
+  (clients should not care as they have given up ownership of the fd, but it’s still good to know IMHO).
  
  - Important: AFAICT the absolute ref for `PATH` resolution is [from exec function in FreeBSD source](https://opensource.apple.com/source/Libc/Libc-1439.100.3/gen/FreeBSD/exec.c.auto.html) (end of file).
  Sadly `Process` does not report the actual errors and seem to always report “File not found” errors when the executable cannot be run.
@@ -140,9 +140,9 @@ public struct ProcessInvocation : AsyncSequence {
 	public var workingDirectory: URL? = nil
 	public var environment: [String: String]? = nil
 	
-	public var stdin: FileDescriptor? = nil
-	public var stdoutRedirect: RedirectMode = .capture
-	public var stderrRedirect: RedirectMode = .capture
+	public var stdinRedirect: InputRedirectMode = .none
+	public var stdoutRedirect: OutputRedirectMode = .capture
+	public var stderrRedirect: OutputRedirectMode = .capture
 	
 	public var signalsToProcess: Set<Signal> = Signal.toForwardToSubprocesses
 	public var signalHandling: (Signal) -> SignalHandling
@@ -214,7 +214,7 @@ public struct ProcessInvocation : AsyncSequence {
 	public init(
 		_ executable: FilePath, _ args: String..., usePATH: Bool = true, customPATH: [FilePath]?? = nil,
 		workingDirectory: URL? = nil, environment: [String: String]? = nil,
-		stdin: FileDescriptor? = nil, stdoutRedirect: RedirectMode = .capture, stderrRedirect: RedirectMode = .capture,
+		stdinRedirect: InputRedirectMode = .fromNull, stdoutRedirect: OutputRedirectMode = .capture, stderrRedirect: OutputRedirectMode = .capture,
 		signalsToProcess: Set<Signal> = Signal.toForwardToSubprocesses,
 		signalHandling: @escaping (Signal) -> SignalHandling = { .default(for: $0) },
 		fileDescriptorsToSend: [FileDescriptor /* Value in **child** */: FileDescriptor /* Value in **parent** */] = [:],
@@ -226,7 +226,7 @@ public struct ProcessInvocation : AsyncSequence {
 		self.init(
 			executable, args: args, usePATH: usePATH, customPATH: customPATH,
 			workingDirectory: workingDirectory, environment: environment,
-			stdin: stdin, stdoutRedirect: stdoutRedirect, stderrRedirect: stderrRedirect,
+			stdinRedirect: stdinRedirect, stdoutRedirect: stdoutRedirect, stderrRedirect: stderrRedirect,
 			signalsToProcess: signalsToProcess,
 			signalHandling: signalHandling,
 			fileDescriptorsToSend: fileDescriptorsToSend,
@@ -249,7 +249,7 @@ public struct ProcessInvocation : AsyncSequence {
 	public init(
 		_ executable: FilePath, args: [String], usePATH: Bool = true, customPATH: [FilePath]?? = nil,
 		workingDirectory: URL? = nil, environment: [String: String]? = nil,
-		stdin: FileDescriptor? = nil, stdoutRedirect: RedirectMode = .capture, stderrRedirect: RedirectMode = .capture,
+		stdinRedirect: InputRedirectMode = .fromNull, stdoutRedirect: OutputRedirectMode = .capture, stderrRedirect: OutputRedirectMode = .capture,
 		signalsToProcess: Set<Signal> = Signal.toForwardToSubprocesses,
 		signalHandling: @escaping (Signal) -> SignalHandling = { .default(for: $0) },
 		fileDescriptorsToSend: [FileDescriptor /* Value in **child** */: FileDescriptor /* Value in **parent** */] = [:],
@@ -266,7 +266,7 @@ public struct ProcessInvocation : AsyncSequence {
 		self.workingDirectory = workingDirectory
 		self.environment = environment
 		
-		self.stdin = stdin
+		self.stdinRedirect = stdinRedirect
 		self.stdoutRedirect = stdoutRedirect
 		self.stderrRedirect = stderrRedirect
 		
@@ -391,8 +391,9 @@ public struct ProcessInvocation : AsyncSequence {
 	 You retrieve the process and a dispatch group you can wait on to be notified when the process and all of its outputs are done.
 	 You can also set the termination handler of the process, but you should wait on the dispatch group to be sure all of the outputs have finished streaming. */
 	public func invoke(outputHandler: @escaping (_ result: Result<RawLineWithSource, Error>, _ signalEndOfInterestForStream: () -> Void, _ process: Process) -> Void, terminationHandler: ((_ process: Process) -> Void)? = nil) throws -> (Process, DispatchGroup) {
+		assert(!fileDescriptorsToSend.values.contains(.standardInput),   "Standard input must be modified using stdinRedirect")
 		assert(!fileDescriptorsToSend.values.contains(.standardOutput), "Standard output must be modified using stdoutRedirect")
-		assert(!fileDescriptorsToSend.values.contains(.standardError), "Standard error must be modified using stderrRedirect")
+		assert(!fileDescriptorsToSend.values.contains(.standardError),   "Standard error must be modified using stderrRedirect")
 		
 		let g = DispatchGroup()
 #if canImport(eXtenderZ)
@@ -564,8 +565,17 @@ public struct ProcessInvocation : AsyncSequence {
 		
 		let actualExecutablePath: FilePath
 		if fileDescriptorsToSend.isEmpty {
-			/* We add closeOnDealloc:false to be explicit, but it’s the default. */
-			p.standardInput = stdin.flatMap{ FileHandle(fileDescriptor: $0.rawValue, closeOnDealloc: false) }
+			switch stdinRedirect {
+				case .none: (/*nop*/)
+				case .fromNull: p.standardInput = nil
+				case .sendFromReader(let reader):
+					let fd = try Self.readFdOfPipeForStreaming(dataFromReader: reader, maxCacheSize: 32 * 1024 * 1024)
+					p.standardInput = FileHandle(fileDescriptor: fd.rawValue, closeOnDealloc: false)
+					fdsToCloseAfterRun.insert(fd)
+				case .fromFd(let fd, let shouldClose):
+					p.standardInput = FileHandle(fileDescriptor: fd.rawValue, closeOnDealloc: false)
+					if shouldClose {fdsToCloseAfterRun.insert(fd)}
+			}
 			p.arguments = args
 			actualExecutablePath = executable
 			forcedPreprendedPATH = nil
@@ -585,11 +595,11 @@ public struct ProcessInvocation : AsyncSequence {
 			}
 			
 			/* The socket to send the fd.
-			 * The tuple thingy _should_ be _in effect_ equivalent to the C version `int sv[2] = {-1, -1};`.
-			 * <https://forums.swift.org/t/guarantee-in-memory-tuple-layout-or-dont/40122>
+			 * The tuple thingy _should_ be _in effect_ equivalent to the C version `int sv[2] = {-1, -1};`:
+			 *  <https://forums.swift.org/t/guarantee-in-memory-tuple-layout-or-dont/40122>
 			 * Stride and alignment should be the equal for CInt.
-			 * Funnily, it seems to only work in debug compilation, not in release…
-			 * var sv: (CInt, CInt) = (-1, -1) */
+			 * Funnily, it seems to only work in debug compilation, not in release… */
+//			var sv: (CInt, CInt) = (-1, -1) */
 			let sv = UnsafeMutablePointer<CInt>.allocate(capacity: 2)
 			sv.initialize(repeating: -1, count: 2)
 			defer {sv.deallocate()}
@@ -620,10 +630,17 @@ public struct ProcessInvocation : AsyncSequence {
 			p.standardInput = FileHandle(fileDescriptor: fd1.rawValue, closeOnDealloc: false)
 			fdToSendFds = fd0
 			
-			if fileDescriptorsToSend[FileDescriptor.standardInput] == nil {
-				/* We must add stdin in the list of file descriptors to send so that
-				 * stdin is restored to its original value when the final process is exec’d from the bridge. */
-				fileDescriptorsToSend[FileDescriptor.standardInput] = FileDescriptor.standardInput
+			/* We must send the modified stdin in the list of file descriptors to send! */
+			switch stdinRedirect {
+				case .none: fileDescriptorsToSend[.standardInput] = .standardInput
+				case .fromNull: (/*nop*/)
+				case .sendFromReader(let reader):
+					let fd = try Self.readFdOfPipeForStreaming(dataFromReader: reader, maxCacheSize: 32 * 1024 * 1024)
+					fileDescriptorsToSend[.standardInput] = fd
+//					fdsToCloseAfterRun.insert(fd)
+				case .fromFd(let fd, let shouldClose):
+					fileDescriptorsToSend[.standardInput] = fd
+//					if shouldClose {fdsToCloseAfterRun.insert(fd)}
 			}
 		}
 		
@@ -770,26 +787,6 @@ public struct ProcessInvocation : AsyncSequence {
 		}
 		
 		return (p, g)
-	}
-	
-	/**
-	 Returns a simple pipe. Different than using the `Pipe()` object from Foundation because you get control on when the fds are closed.
-	 
-	 - Important: The `FileDescriptor`s returned **must** be closed manually. */
-	public static func unownedPipe() throws -> (fdRead: FileDescriptor, fdWrite: FileDescriptor) {
-		let pipepointer = UnsafeMutablePointer<CInt>.allocate(capacity: 2)
-		defer {pipepointer.deallocate()}
-		pipepointer.initialize(to: -1)
-		
-		guard pipe(pipepointer) == 0 else {
-			throw Err.systemError(Errno(rawValue: errno))
-		}
-		
-		let fdRead  = pipepointer.advanced(by: 0).pointee
-		let fdWrite = pipepointer.advanced(by: 1).pointee
-		assert(fdRead != -1 && fdWrite != -1)
-		
-		return (FileDescriptor(rawValue: fdRead), FileDescriptor(rawValue: fdWrite))
 	}
 	
 	public struct Iterator : AsyncIteratorProtocol {

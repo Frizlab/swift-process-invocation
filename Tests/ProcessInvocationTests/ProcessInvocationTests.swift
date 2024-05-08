@@ -75,7 +75,7 @@ final class ProcessInvocationTests : XCTestCase {
 				let fileContents = try String(contentsOf: filePath.url)
 				
 				let fd = try FileDescriptor.open(filePath, .readOnly)
-				let (outputs, exitStatus, exitReason) = try await ProcessInvocation("/bin/cat", stdin: fd, signalsToProcess: []).invokeAndGetOutput(checkValidTerminations: false)
+				let (outputs, exitStatus, exitReason) = try await ProcessInvocation("/bin/cat", stdinRedirect: .fromFd(fd, giveOwnership: false), signalsToProcess: []).invokeAndGetOutput(checkValidTerminations: false)
 				try fd.close()
 				
 				XCTAssertEqual(exitStatus, 0)
@@ -381,7 +381,7 @@ final class ProcessInvocationTests : XCTestCase {
 			let masterFd = FileDescriptor(rawValue: masterRawFd)
 			let output = try await ProcessInvocation(
 				"bash", "-c", "echo ok",
-				stdin: nil, stdoutRedirect: .toFd(slaveFd, giveOwnership: true), stderrRedirect: .toNull, additionalOutputFileDescriptors: [masterFd],
+				stdinRedirect: .none, stdoutRedirect: .toFd(slaveFd, giveOwnership: true), stderrRedirect: .toNull, additionalOutputFileDescriptors: [masterFd],
 				lineSeparators: .newLine(unix: true, legacyMacOS: false, windows: true/* Because of the pty, I think. */)
 			).invokeAndGetRawOutput()
 			XCTAssertEqual(output, [.init(line: Data([0x6f, 0x6b]), eol: Data([0x0d, 0x0a]), fd: masterFd)])
@@ -445,7 +445,7 @@ final class ProcessInvocationTests : XCTestCase {
 			/* Note: No defer in which we close the fds, they will be closed by ProcessInvocation. */
 			let output = try await ProcessInvocation(
 				"bash", "-c", "echo ok",
-				stdin: nil, stdoutRedirect: .toFd(slaveFd, giveOwnership: true), stderrRedirect: .toNull, additionalOutputFileDescriptors: [masterFd],
+				stdinRedirect: .none, stdoutRedirect: .toFd(slaveFd, giveOwnership: true), stderrRedirect: .toNull, additionalOutputFileDescriptors: [masterFd],
 				lineSeparators: .customCharacters([0x6b])
 			).invokeAndGetRawOutput()
 			XCTAssertEqual(output, [.init(line: Data([0x6f]), eol: Data([0x6b]), fd: masterFd), .init(line: Data([0x0d, 0x0a]), eol: Data(), fd: masterFd)])
@@ -456,6 +456,94 @@ final class ProcessInvocationTests : XCTestCase {
 		group.wait()
 		/* LINUXASYNC STOP --------- */
 	}
+	
+	func testSendDataToStdin() throws {
+		/* LINUXASYNC START --------- */
+		let group = DispatchGroup()
+		group.enter()
+		Task{do{
+			/* LINUXASYNC STOP --------- */
+			
+			let data = Data([0, 1, 2, 3, 4, 5])
+			let (outputs, exitStatus, exitReason) = try await ProcessInvocation(
+				"/bin/cat", stdinRedirect: .send(data),
+				signalsToProcess: [],
+				lineSeparators: .none
+			).invokeAndGetRawOutput(checkValidTerminations: false)
+			
+			XCTAssertEqual(exitStatus, 0)
+			XCTAssertEqual(exitReason, .exit)
+			
+			XCTAssertEqual(outputs.count, 1)
+			XCTAssertFalse(outputs.contains(where: { $0.fd == .standardError }))
+			XCTAssertEqual(outputs.first?.line, data)
+			
+			/* LINUXASYNC START --------- */
+			group.leave()
+		} catch {XCTFail("Error thrown during async test: \(error)"); group.leave()}}
+		group.wait()
+		/* LINUXASYNC STOP --------- */
+	}
+	
+	func testSendDataToStdinWithFdsToSend() throws {
+		/* LINUXASYNC START --------- */
+		let group = DispatchGroup()
+		group.enter()
+		Task{do{
+			/* LINUXASYNC STOP --------- */
+			
+			let (_, fdWrite) = try ProcessInvocation.unownedPipe()
+			
+			let data = Data([0, 1, 2, 3, 4, 5])
+			let (outputs, exitStatus, exitReason) = try await ProcessInvocation(
+				"/bin/cat", stdinRedirect: .send(data),
+				signalsToProcess: [],
+				fileDescriptorsToSend: [fdWrite: fdWrite],
+				lineSeparators: .none
+			).invokeAndGetRawOutput(checkValidTerminations: false)
+			
+			XCTAssertEqual(exitStatus, 0)
+			XCTAssertEqual(exitReason, .exit)
+			
+			XCTAssertEqual(outputs.count, 1)
+			XCTAssertFalse(outputs.contains(where: { $0.fd == .standardError }))
+			XCTAssertEqual(outputs.first?.line, data)
+			
+			/* LINUXASYNC START --------- */
+			group.leave()
+		} catch {XCTFail("Error thrown during async test: \(error)"); group.leave()}}
+		group.wait()
+		/* LINUXASYNC STOP --------- */
+	}
+	
+	/* Works, but so slow. */
+//	func testSendBiggerDataToStdin() throws {
+//		/* LINUXASYNC START --------- */
+//		let group = DispatchGroup()
+//		group.enter()
+//		Task{do{
+//			/* LINUXASYNC STOP --------- */
+//			
+//			let data = Data(Array(repeating: [0, 1, 2, 3, 4, 5], count: 64 * 1024 * 1024).flatMap{ $0 })
+//			let (outputs, exitStatus, exitReason) = try await ProcessInvocation(
+//				"/bin/cat", stdinRedirect: .send(data),
+//				signalsToProcess: [],
+//				lineSeparators: .none
+//			).invokeAndGetRawOutput(checkValidTerminations: false)
+//			
+//			XCTAssertEqual(exitStatus, 0)
+//			XCTAssertEqual(exitReason, .exit)
+//			
+//			XCTAssertEqual(outputs.count, 1)
+//			XCTAssertFalse(outputs.contains(where: { $0.fd == .standardError }))
+//			XCTAssertEqual(outputs.first?.line, data)
+//			
+//			/* LINUXASYNC START --------- */
+//			group.leave()
+//		} catch {XCTFail("Error thrown during async test: \(error)"); group.leave()}}
+//		group.wait()
+//		/* LINUXASYNC STOP --------- */
+//	}
 	
 	/* While XCTest does not have support for async for XCTAssertThrowsError */
 	private func tempAsyncAssertThrowsError<T>(_ block: @autoclosure () async throws -> T, _ message: @escaping @autoclosure () -> String = "", file: StaticString = #filePath, line: UInt = #line, _ errorHandler: (_ error: Error) -> Void = { _ in }) async {
