@@ -566,7 +566,7 @@ public struct ProcessInvocation : AsyncSequence {
 		let actualExecutablePath: FilePath
 		if fileDescriptorsToSend.isEmpty {
 			switch stdinRedirect {
-				case .none: (/*nop*/)
+				case .none: p.standardInput = FileHandle.standardInput
 				case .fromNull: p.standardInput = nil
 				case .sendFromReader(let reader):
 					let fd = try Self.readFdOfPipeForStreaming(dataFromReader: reader, maxCacheSize: 32 * 1024 * 1024)
@@ -633,14 +633,15 @@ public struct ProcessInvocation : AsyncSequence {
 			/* We must send the modified stdin in the list of file descriptors to send! */
 			switch stdinRedirect {
 				case .none: fileDescriptorsToSend[.standardInput] = .standardInput
-				case .fromNull: (/*nop*/)
+				case .fromNull:
+					let fd = try Self.readFdOfPipeForStreaming(dataFromReader: DataReader(data: Data()), maxCacheSize: 1)
+					fileDescriptorsToSend[.standardInput] = fd
 				case .sendFromReader(let reader):
 					let fd = try Self.readFdOfPipeForStreaming(dataFromReader: reader, maxCacheSize: 32 * 1024 * 1024)
 					fileDescriptorsToSend[.standardInput] = fd
-//					fdsToCloseAfterRun.insert(fd)
 				case .fromFd(let fd, let shouldClose):
+					assert(shouldClose, "Not giving ownership of fd to send is not supported (from stdin redirect).")
 					fileDescriptorsToSend[.standardInput] = fd
-//					if shouldClose {fdsToCloseAfterRun.insert(fd)}
 			}
 		}
 		

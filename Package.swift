@@ -113,6 +113,9 @@ let package = Package(
 			res.append(.target(name: "CGNUSourceExportsForTests", swiftSettings: noSwiftSettings))
 		}
 		
+		/* Some manual tests for stdin redirect behavior. */
+		res.append(.executableTarget(name: "ManualTests", dependencies: ["ProcessInvocation"], swiftSettings: noSwiftSettings))
+		
 		return res
 	}()
 )
