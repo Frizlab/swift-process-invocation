@@ -540,6 +540,27 @@ final class ProcessInvocationTests : XCTestCase {
 		/* LINUXASYNC STOP --------- */
 	}
 	
+	func testBashPipeLikeFlow() throws {
+		/* LINUXASYNC START --------- */
+		let group = DispatchGroup()
+		group.enter()
+		Task{do{
+			/* LINUXASYNC STOP --------- */
+			
+			let (fdRead, fdWrite) = try ProcessInvocation.unownedPipe()
+			let invocation1 = ProcessInvocation("printf", "%s", "1+2", stdoutRedirect: .toFd(fdWrite, giveOwnership: true))
+			_ = try invocation1.invoke(outputHandler: { _, _, _ in })
+			let invocation2 = ProcessInvocation("bc", stdinRedirect: .sendFromReader(FileDescriptorReader(stream: fdRead, bufferSize: 3, bufferSizeIncrement: 1)))
+			let output = try await invocation2.invokeAndGetOutput()
+			XCTAssertEqual(output, [.init(line: "3", eol: "\n", fd: .standardOutput)])
+			
+			/* LINUXASYNC START --------- */
+			group.leave()
+		} catch {XCTFail("Error thrown during async test: \(error)"); group.leave()}}
+		group.wait()
+		/* LINUXASYNC STOP --------- */
+	}
+	
 	/* Works, but so slow. */
 //	func testSendBiggerDataToStdin() throws {
 //		/* LINUXASYNC START --------- */
