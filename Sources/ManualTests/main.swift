@@ -6,18 +6,15 @@ import SystemPackage
 #endif
 
 import CLTLogger
-import CMacroExports
 import Logging
 import ProcessInvocation
+import StreamReader
 
 /* Old remark (fixed not):
  *    Launch the manual test like so:
  *     echo yolo | ./.build/debug/ManualTests
  *    For some reasons actually typing stuff in the Terminal (no “echo yolo |”) does not work
- *     (probably some buffered read as stdin is not a tty for cat, or some other sh*t I don’t really get).
- *
- * Everything seems to work correctly when not sending file descriptors.
- * If we do send fds, I’m not sure… */
+ *     (probably some buffered read as stdin is not a tty for cat, or some other sh*t I don’t really get). */
 
 
 
@@ -34,7 +31,6 @@ let logger = Logger(label: "com.xcode-actions.manual-process-invocation-tests")
 //let ptr = UnsafeMutableRawPointer.allocate(byteCount: 42, alignment: 1)
 //print("yolo: \(read(stdin, ptr, 1))")
 
-//import StreamReader
 //let reader = FileHandleReader(stream: FileHandle.standardInput, bufferSize: 30, bufferSizeIncrement: 30, underlyingStreamReadSizeLimit: 1)
 //while let line = try reader.readLine()?.line {
 //	print(line.reduce("", { $0 + String(format: "%02x", $1) }))
@@ -68,9 +64,21 @@ do {
 //		""", stdinRedirect: .none/*, fileDescriptorsToSend: [fd: fd]*/
 //	)
 //	let pi = ProcessInvocation("/bin/cat", stdinRedirect: .send(Data("yo".utf8)))
-	let pi = ProcessInvocation("/bin/cat", stdinRedirect: .none(), stdoutRedirect: .none, stderrRedirect: .none, fileDescriptorsToSend: [fd: fd])
+//	let pi = ProcessInvocation("/bin/cat", stdinRedirect: .none(), stdoutRedirect: .none, stderrRedirect: .none, fileDescriptorsToSend: [fd: fd])
+//	for try await line in pi {
+//		print("From cat: \(line.strLineOrHex())")
+//	}
+	
+	/* Try to read one line from ProcessInvocation and then one using StreamReader. */
+	let pi = ProcessInvocation("head", "-n", "1")
 	for try await line in pi {
-		print("From cat: \(line.strLineOrHex())")
+		print("From head: \(line.strLineOrHex())")
+	}
+	let reader = FileDescriptorReader(stream: FileDescriptor.standardInput, bufferSize: 32, bufferSizeIncrement: 16, underlyingStreamReadSizeLimit: 1)
+	if let line = try reader.readLine()?.line {
+		print("From reader: \(String(data: line, encoding: .utf8) ?? line.reduce("", { $0 + String(format: "%02x", $1) }))")
+	} else {
+		print("Failed reading line from stream reader.")
 	}
 } catch {
 	print("Failed running the process: \(error)")
