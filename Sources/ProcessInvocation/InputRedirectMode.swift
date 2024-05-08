@@ -25,7 +25,7 @@ public enum InputRedirectMode {
 	 Send the given data to the subprocess (done with a pipe).
 	 
 	 - Important: This is not supported when launching the process via the bridge (asserted). */
-	case sendFromReader(DataReader)
+	case sendFromReader(StreamReader)
 	/**
 	 The stream should be redirected from this fd.
 	 
