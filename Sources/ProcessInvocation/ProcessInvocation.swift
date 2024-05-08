@@ -216,7 +216,7 @@ public struct ProcessInvocation : AsyncSequence {
 	public init(
 		_ executable: FilePath, _ args: String..., usePATH: Bool = true, customPATH: [FilePath]?? = nil,
 		workingDirectory: URL? = nil, environment: [String: String]? = nil,
-		stdinRedirect: InputRedirectMode = .fromNull, stdoutRedirect: OutputRedirectMode = .capture, stderrRedirect: OutputRedirectMode = .capture,
+		stdinRedirect: InputRedirectMode = .none(), stdoutRedirect: OutputRedirectMode = .capture, stderrRedirect: OutputRedirectMode = .capture,
 		signalsToProcess: Set<Signal> = Signal.toForwardToSubprocesses,
 		signalHandling: @escaping (Signal) -> SignalHandling = { .default(for: $0) },
 		fileDescriptorsToSend: [FileDescriptor /* Value in **child** */: FileDescriptor /* Value in **parent** */] = [:],
@@ -251,7 +251,7 @@ public struct ProcessInvocation : AsyncSequence {
 	public init(
 		_ executable: FilePath, args: [String], usePATH: Bool = true, customPATH: [FilePath]?? = nil,
 		workingDirectory: URL? = nil, environment: [String: String]? = nil,
-		stdinRedirect: InputRedirectMode = .fromNull, stdoutRedirect: OutputRedirectMode = .capture, stderrRedirect: OutputRedirectMode = .capture,
+		stdinRedirect: InputRedirectMode = .none(), stdoutRedirect: OutputRedirectMode = .capture, stderrRedirect: OutputRedirectMode = .capture,
 		signalsToProcess: Set<Signal> = Signal.toForwardToSubprocesses,
 		signalHandling: @escaping (Signal) -> SignalHandling = { .default(for: $0) },
 		fileDescriptorsToSend: [FileDescriptor /* Value in **child** */: FileDescriptor /* Value in **parent** */] = [:],
