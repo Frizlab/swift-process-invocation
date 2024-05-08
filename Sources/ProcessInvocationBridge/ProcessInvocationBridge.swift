@@ -122,6 +122,7 @@ struct ProcessInvocationBridge : ParsableCommand {
 				destinationFdToReceivedFd[destinationFdToUpdate] = newReceivedFd
 			}
 			
+			Self.logger.trace("Replacing destination fd with received fd.", metadata: ["destination_fd": "\(destinationFd)", "received_fd": "\(receivedFd)"])
 			guard dup2(receivedFd, destinationFd) != -1 else {
 				/* TODO: Use an actual error */
 				throw ExitCode(rawValue: 1)
