@@ -9,6 +9,11 @@ import StreamReader
 
 
 
+/* Some utilities to avoid name clash with ProcessInvocation functions and avoid using `Darwin.` which does not exist on Linux.
+ * We’ll probably use System methods instead. */
+private func globalClose(_ fd: Int32) -> Int32 {close(fd)}
+private func globalWrite(_ fd: Int32, _ buf: UnsafeRawPointer!, _ nbyte: Int) -> Int {write(fd, buf, nbyte)}
+
 public extension ProcessInvocation {
 	
 	/**
@@ -51,7 +56,7 @@ public extension ProcessInvocation {
 			fhWrite.writeabilityHandler = { fh in
 				let closeFH = {
 					fhWrite.writeabilityHandler = nil
-					if Darwin.close(fh.fileDescriptor) == -1 {
+					if globalClose(fh.fileDescriptor) == -1 {
 						Conf.logger?.error("Failed closing write end of fd for pipe to swift; pipe might stay open forever.", metadata: ["errno": "\(errno)", "errno-str": "\(Errno(rawValue: errno).localizedDescription)"])
 					}
 				}
@@ -67,7 +72,7 @@ public extension ProcessInvocation {
 							var ret: Int
 							repeat {
 								Conf.logger?.trace("Trying to write on write end of pipe.", metadata: ["bytes_count": "\(bytes.count)"])
-								ret = Darwin.write(fh.fileDescriptor, bytes.baseAddress!, bytes.count)
+								ret = globalWrite(fh.fileDescriptor, bytes.baseAddress!, bytes.count)
 							} while ret == -1 && errno == EINTR
 							return (ret, errno)
 						}()

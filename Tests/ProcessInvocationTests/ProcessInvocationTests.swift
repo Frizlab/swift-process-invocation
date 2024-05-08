@@ -18,6 +18,13 @@ import CGNUSourceExportsForTests
 
 
 
+#if !canImport(Darwin)
+private let posix_openpt = spift_posix_openpt
+private let grantpt      = spift_grantpt
+private let unlockpt     = spift_unlockpt
+private let ptsname      = spift_ptsname
+#endif
+
 final class ProcessInvocationTests : XCTestCase {
 	
 	override class func setUp() {
