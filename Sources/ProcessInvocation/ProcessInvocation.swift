@@ -602,7 +602,7 @@ public struct ProcessInvocation : AsyncSequence {
 		} else {
 			let execBasePath = getenv(Constants.bridgePathEnvVarName).flatMap{ FilePath(String(cString: $0)) }
 			if !usePATH {
-				guard let execBasePath = execBasePath else {
+				guard let execBasePath else {
 					Conf.logger?.error("Cannot launch process and send its fd if \(Constants.bridgePathEnvVarName) is not set.")
 					try cleanupAndThrow(Err.bridgePathEnvVarNotSet)
 				}
