@@ -1094,7 +1094,7 @@ class XcodeToolsProcessExtender : NSObject, SPITaskExtender {
  A subclass of Process whose termination handler is overridden, in order for XcodeTools
   to set its own termination handler and
   still let clients use it. */
-private class XcodeToolsProcess : Process {
+private class XcodeToolsProcess : Process, @unchecked Sendable {
 	
 #if swift(>=6)
 	typealias TerminationHandler = (@Sendable (Process) -> Void)
