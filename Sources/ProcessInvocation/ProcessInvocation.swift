@@ -392,7 +392,7 @@ public struct ProcessInvocation : AsyncSequence {
 	 
 	 You retrieve the process and a dispatch group you can wait on to be notified when the process and all of its outputs are done.
 	 You can also set the termination handler of the process, but you should wait on the dispatch group to be sure all of the outputs have finished streaming. */
-	public func invoke(outputHandler: @escaping (_ result: Result<RawLineWithSource, Error>, _ signalEndOfInterestForStream: () -> Void, _ process: Process) -> Void, terminationHandler: ((_ process: Process) -> Void)? = nil) throws -> (Process, DispatchGroup) {
+	public func invoke(outputHandler: @escaping (_ result: Result<RawLineWithSource, Error>, _ signalEndOfInterestForStream: () -> Void, _ process: Process) -> Void, terminationHandler: (@Sendable (_ process: Process) -> Void)? = nil) throws -> (Process, DispatchGroup) {
 		assert(!fileDescriptorsToSend.keys.contains(.standardInput),   "Standard input must be modified using stdinRedirect")
 		assert(!fileDescriptorsToSend.keys.contains(.standardOutput), "Standard output must be modified using stdoutRedirect")
 		assert(!fileDescriptorsToSend.keys.contains(.standardError),   "Standard error must be modified using stderrRedirect")
