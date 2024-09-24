@@ -1096,7 +1096,13 @@ class XcodeToolsProcessExtender : NSObject, SPITaskExtender {
   still let clients use it. */
 private class XcodeToolsProcess : Process {
 	
-	var privateTerminationHandler: ((Process) -> Void)? {
+#if swift(>=6)
+	typealias TerminationHandler = (@Sendable (Process) -> Void)
+#else
+	typealias TerminationHandler = ((Process) -> Void)
+#endif
+	
+	var privateTerminationHandler: TerminationHandler? {
 		didSet {updateTerminationHandler()}
 	}
 	
@@ -1111,12 +1117,12 @@ private class XcodeToolsProcess : Process {
 		Conf.logger?.trace("Deinit of an XcodeToolsProcess")
 	}
 	
-	override var terminationHandler: ((Process) -> Void)? {
+	override var terminationHandler: TerminationHandler? {
 		get {super.terminationHandler}
 		set {publicTerminationHandler = newValue; updateTerminationHandler()}
 	}
 	
-	private var publicTerminationHandler: ((Process) -> Void)?
+	private var publicTerminationHandler: TerminationHandler?
 	
 	/**
 	 Sets super’s terminationHandler to nil if both private and public termination handlers are nil, otherwise set it to call them. */
