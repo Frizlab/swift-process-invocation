@@ -1096,7 +1096,7 @@ class XcodeToolsProcessExtender : NSObject, SPITaskExtender {
   still let clients use it. */
 private class XcodeToolsProcess : Process, @unchecked Sendable {
 	
-#if swift(>=6)
+#if compiler(>=6)
 	typealias TerminationHandler = (@Sendable (Process) -> Void)
 #else
 	typealias TerminationHandler = ((Process) -> Void)
