@@ -17,7 +17,7 @@ public enum InputRedirectMode {
 	 The stream will be left as-is.
 	 
 	 If `setFgPgID` is set to `true` (default), an attempt is set the foreground group ID associated with the controlling terminal of the fd to the child process group ID.
-	 If the attempt fails with the `ENOTTY` error, the error is ignored; otherwise it is not. */
+	 If the attempt fails with the `ENOTTY` error, the error is ignored; otherwise it is not (it’s logged). */
 	case none(setFgPgID: Bool = true)
 	/** This is the equivalent of using ``InputRedirectMode/send(_:)`` with an empty data. */
 	case fromNull

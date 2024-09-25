@@ -420,17 +420,11 @@ public struct ProcessInvocation : AsyncSequence {
 		if let environment      = environment      {p.environment         = environment}
 		if let workingDirectory = workingDirectory {p.currentDirectoryURL = workingDirectory}
 		
-		nonisolated(unsafe) var fdWhoseFgPgIDShouldBeRevertedOnError: FileDescriptor?
 		var fdsToCloseInCaseOfError = Set<FileDescriptor>()
 		var fdToSwitchToBlockingInCaseOfError = Set<FileDescriptor>()
 		var countOfDispatchGroupLeaveInCaseOfError = 0
 		var signalCleaningOnError: (() -> Void)?
 		func cleanupAndThrow(_ error: Error) throws -> Never {
-			if let fdWhoseFgPgIDShouldBeRevertedOnError {
-				if tcsetpgrp(fdWhoseFgPgIDShouldBeRevertedOnError.rawValue, getpgrp()) != 0 && errno != ENOTTY {
-					Conf.logger?.error("Failed setting foreground process group ID of controlling terminal of stdin back to our process group.")
-				}
-			}
 			signalCleaningOnError?()
 			for _ in 0..<countOfDispatchGroupLeaveInCaseOfError {g.leave()}
 			
@@ -705,8 +699,6 @@ public struct ProcessInvocation : AsyncSequence {
 				/* Let’s revert the fg pg ID back to our pg ID. */
 				if tcsetpgrp(fdWhoseFgPgIDShouldBeSet.rawValue, getpgrp()) != 0 && errno != ENOTTY {
 					Conf.logger?.error("Failed setting foreground process group ID of controlling terminal of stdin back to our process group.")
-				} else {
-					fdWhoseFgPgIDShouldBeRevertedOnError = fdWhoseFgPgIDShouldBeSet
 				}
 			}
 			signalCleanupHandler()
@@ -759,62 +751,81 @@ public struct ProcessInvocation : AsyncSequence {
 				p.executableURL = URL(fileURLWithPath: actualExecutablePath.string)
 				try p.run()
 			}
-			if let fdWhoseFgPgIDShouldBeSet {
-				if tcsetpgrp(fdWhoseFgPgIDShouldBeSet.rawValue, getpgid(p.processIdentifier)) != 0 && errno != ENOTTY {
-					/* TODO: We should definitely use a more explicit error. Actually the whole systemError error should probably be removed and replaced by more precise errors (which can still take an Errno as an argument). */
-					throw Err.systemError(Errno(rawValue: errno))
-				}
-			}
 			/* Decrease count of group leaves needed because now that the process is launched, its termination handler will be called. */
 			countOfDispatchGroupLeaveInCaseOfError -= 1
 			signalCleaningOnError = nil
-			try fdsToCloseAfterRun.forEach{
-				try $0.close()
-				fdsToCloseInCaseOfError.remove($0)
-			}
+			/* We send the fds to the child process.
+			 * If this fails we fail the whole process invocation and kill the subprocess. */
 			if !fileDescriptorsToSend.isEmpty {
 				let fdToSendFds = fdToSendFds!
-				try withUnsafeBytes(of: Int32(fileDescriptorsToSend.count), { bytes in
-					guard try fdToSendFds.write(bytes) == bytes.count else {
-						throw Err.internalError("Unexpected count of sent bytes to fdToSendFds")
+				do {
+					try withUnsafeBytes(of: Int32(fileDescriptorsToSend.count), { bytes in
+						guard try fdToSendFds.write(bytes) == bytes.count else {
+							throw Err.internalError("Unexpected count of sent bytes to fdToSendFds")
+						}
+					})
+					for (fdInChild, fdToSend) in fileDescriptorsToSend {
+						try Self.send(fd: fdToSend.rawValue, destfd: fdInChild.rawValue, to: fdToSendFds.rawValue)
 					}
-				})
-				for (fdInChild, fdToSend) in fileDescriptorsToSend {
-					try Self.send(fd: fdToSend.rawValue, destfd: fdInChild.rawValue, to: fdToSendFds.rawValue)
+				} catch {
+					kill(p.processIdentifier, SIGKILL)
+					try cleanupAndThrow(error)
 				}
+				/* All of the fds have been sent.
+				 * Now if we get an error closing fds we log the error but do not fail the whole invocation. */
 				Conf.logger?.trace("Closing fd to send fds.", metadata: ["fd": "\(fdToSendFds)"])
-				try fdToSendFds.close()
+				do    {try fdToSendFds.close()}
+				catch {Conf.logger?.error("Failed closing fd to send fds.", metadata: ["error": "\(error)", "fd": "\(fdToSendFds)"])}
 				Conf.logger?.trace("Closing sent fds.", metadata: ["fds": .array(fileDescriptorsToSend.values.filter{ $0 != .standardInput }.map{ "\($0)" })])
-				try fileDescriptorsToSend.values.forEach{ if $0 != .standardInput {try $0.close()} }
+				fileDescriptorsToSend.values.forEach{
+					if $0 != .standardInput {
+						do    {try $0.close()}
+						catch {Conf.logger?.error("Failed closing sent fd.", metadata: ["error": "\(error)", "fd": "\($0)"])}
+					}
+				}
 				fdsToCloseInCaseOfError.remove(fdToSendFds) /* Not really useful there cannot be any more errors from there. */
 			}
 		}
-		
-		for fd in outputFileDescriptors {
-			let streamReader = FileDescriptorReader(stream: fd, bufferSize: 1024, bufferSizeIncrement: 512)
-			streamReader.underlyingStreamReadSizeLimit = 0
+		/* The executable is now launched.
+		 * We must not fail after this, so we wrap the rest of the function in a non-throwing block. */
+		return {
+			if let fdWhoseFgPgIDShouldBeSet {
+				if tcsetpgrp(fdWhoseFgPgIDShouldBeSet.rawValue, getpgid(p.processIdentifier)) != 0 && errno != ENOTTY {
+					Conf.logger?.error("Failed setting the foreground group ID to the child process group ID.", metadata: ["error": "\(Errno(rawValue: errno))"])
+				}
+			}
+			fdsToCloseAfterRun.forEach{
+				do    {try $0.close()}
+				catch {Conf.logger?.error("Failed closing a file descriptor.", metadata: ["error": "\(error)", "fd": "\($0)"])}
+				fdsToCloseInCaseOfError.remove($0)
+			}
 			
-			let streamSource = DispatchSource.makeReadSource(fileDescriptor: fd.rawValue, queue: Self.streamQueue)
-			streamSource.setCancelHandler{
-				_ = try? fd.close()
-				g.leave()
+			for fd in outputFileDescriptors {
+				let streamReader = FileDescriptorReader(stream: fd, bufferSize: 1024, bufferSizeIncrement: 512)
+				streamReader.underlyingStreamReadSizeLimit = 0
+				
+				let streamSource = DispatchSource.makeReadSource(fileDescriptor: fd.rawValue, queue: Self.streamQueue)
+				streamSource.setCancelHandler{
+					_ = try? fd.close()
+					g.leave()
+				}
+				streamSource.setEventHandler{
+					/* `source.data`: see doc of dispatch_source_get_data in objc */
+					/* `source.mask`: see doc of dispatch_source_get_mask in objc (is always 0 for read source) */
+					Self.handleProcessOutput(
+						streamSource: streamSource,
+						outputHandler: { lineOrError, signalEOI in actualOutputHandler(lineOrError.map{ RawLineWithSource(line: $0.0, eol: $0.1, fd: fdRedirects[fd] ?? fd) }, signalEOI, p) },
+						lineSeparators: lineSeparators,
+						streamReader: streamReader,
+						estimatedBytesAvailable: streamSource.data,
+						platformSpecificInfo: platformSpecificInfo
+					)
+				}
+				streamSource.activate()
 			}
-			streamSource.setEventHandler{
-				/* `source.data`: see doc of dispatch_source_get_data in objc */
-				/* `source.mask`: see doc of dispatch_source_get_mask in objc (is always 0 for read source) */
-				Self.handleProcessOutput(
-					streamSource: streamSource,
-					outputHandler: { lineOrError, signalEOI in actualOutputHandler(lineOrError.map{ RawLineWithSource(line: $0.0, eol: $0.1, fd: fdRedirects[fd] ?? fd) }, signalEOI, p) },
-					lineSeparators: lineSeparators,
-					streamReader: streamReader,
-					estimatedBytesAvailable: streamSource.data,
-					platformSpecificInfo: platformSpecificInfo
-				)
-			}
-			streamSource.activate()
-		}
-		
-		return (p, g)
+			
+			return (p, g)
+		}()
 	}
 	
 	public struct Iterator : AsyncIteratorProtocol {
