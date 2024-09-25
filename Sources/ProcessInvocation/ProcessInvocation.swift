@@ -136,7 +136,7 @@ public struct ProcessInvocation : AsyncSequence {
 	 It can be set
 	  to `.none`, which means the default `PATH` env variable will be used,
 	  to `.some(.none)`, in which case the default `PATH` is used (`_PATH_DEFPATH`, see `exec(3)`) or
-	  to a non-nil value, in which case this value is used. */
+	  to a non-`nil` value, in which case this value is used. */
 	public var customPATH: [FilePath]?? = nil
 	
 	public var workingDirectory: URL? = nil
@@ -420,7 +420,7 @@ public struct ProcessInvocation : AsyncSequence {
 		if let environment      = environment      {p.environment         = environment}
 		if let workingDirectory = workingDirectory {p.currentDirectoryURL = workingDirectory}
 		
-		var fdWhoseFgPgIDShouldBeRevertedOnError: FileDescriptor?
+		nonisolated(unsafe) var fdWhoseFgPgIDShouldBeRevertedOnError: FileDescriptor?
 		var fdsToCloseInCaseOfError = Set<FileDescriptor>()
 		var fdToSwitchToBlockingInCaseOfError = Set<FileDescriptor>()
 		var countOfDispatchGroupLeaveInCaseOfError = 0
@@ -699,7 +699,7 @@ public struct ProcessInvocation : AsyncSequence {
 		}
 		signalCleaningOnError = signalCleanupHandler
 		
-		let additionalTerminationHandler: (Process) -> Void = { _ in
+		let additionalTerminationHandler: @Sendable (Process) -> Void = { _ in
 			Conf.logger?.debug("Called in termination handler of process.")
 			if let fdWhoseFgPgIDShouldBeSet {
 				/* Let’s revert the fg pg ID back to our pg ID. */
