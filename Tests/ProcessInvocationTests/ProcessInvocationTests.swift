@@ -344,7 +344,7 @@ final class ProcessInvocationTests : XCTestCase {
 			let checkCwdAndEnvPathInCwd = FilePath(root: nil, components: ".", checkCwdAndEnvScriptComponent)
 			
 			let currentWD = FileManager.default.currentDirectoryPath
-			defer {FileManager.default.changeCurrentDirectoryPath(currentWD)}
+			defer {_ = FileManager.default.changeCurrentDirectoryPath(currentWD)}
 			
 			await tempAsyncAssertThrowsError(try await ProcessInvocation(nonexistentScriptPath, signalsToProcess: []).invokeAndGetRawOutput())
 			await tempAsyncAssertThrowsError(try await ProcessInvocation(checkCwdAndEnvPath, usePATH: true, customPATH: nil, signalsToProcess: []).invokeAndGetRawOutput())
@@ -401,13 +401,13 @@ final class ProcessInvocationTests : XCTestCase {
 			await tempAsyncAssertNoThrow(try await ProcessInvocation(checkCwdAndEnvPath, usePATH: true, customPATH: nil, signalsToProcess: []).invokeAndGetRawOutput())
 			await tempAsyncAssertNoThrow(try await ProcessInvocation(checkCwdAndEnvPath, usePATH: true, signalsToProcess: []).invokeAndGetRawOutput())
 			
-			FileManager.default.changeCurrentDirectoryPath(Self.scriptsPath.string)
+			_ = FileManager.default.changeCurrentDirectoryPath(Self.scriptsPath.string)
 			await tempAsyncAssertNoThrow(try await ProcessInvocation(checkCwdAndEnvPath, usePATH: true, customPATH: [""], signalsToProcess: []).invokeAndGetRawOutput())
 			await tempAsyncAssertNoThrow(try await ProcessInvocation(checkCwdAndEnvPathInCwd, usePATH: true, customPATH: nil, signalsToProcess: []).invokeAndGetRawOutput())
 			await tempAsyncAssertNoThrow(try await ProcessInvocation(checkCwdAndEnvPathInCwd, usePATH: false, signalsToProcess: []).invokeAndGetRawOutput())
 			/* Sadly the error we get is a file not found on macOS.
 			 * On Linux, the error makes sense. */
-			FileManager.default.changeCurrentDirectoryPath(Self.filesPath.string)
+			_ = FileManager.default.changeCurrentDirectoryPath(Self.filesPath.string)
 			await tempAsyncAssertThrowsError(try await ProcessInvocation(notExecutablePathInCwd, usePATH: false, signalsToProcess: []).invokeAndGetRawOutput())
 			
 			/* LINUXASYNC START --------- */
