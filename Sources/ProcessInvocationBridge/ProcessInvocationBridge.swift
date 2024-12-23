@@ -213,7 +213,11 @@ struct ProcessInvocationBridge : ParsableCommand {
 		let controlBufSize = 256
 		let controlBuf = UnsafeMutablePointer<Int8>.allocate(capacity: controlBufSize)
 		defer {controlBuf.deallocate()}
+#if swift(>=5.8)
 		controlBuf.update(repeating: 0, count: controlBufSize)
+#else
+		controlBuf.assign(repeating: 0, count: controlBufSize)
+#endif
 		msg.msg_control = UnsafeMutableRawPointer(controlBuf)
 #if canImport(Darwin)
 		msg.msg_controllen = socklen_t(controlBufSize)

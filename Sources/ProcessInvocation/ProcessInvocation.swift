@@ -600,7 +600,7 @@ public struct ProcessInvocation : AsyncSequence {
 		} else {
 			let execBasePath = getenv(Constants.bridgePathEnvVarName).flatMap{ FilePath(String(cString: $0)) }
 			if !usePATH {
-				guard let execBasePath else {
+				guard let execBasePath = execBasePath else {
 					Conf.logger?.error("Cannot launch process and send its fd if \(Constants.bridgePathEnvVarName) is not set.")
 					try cleanupAndThrow(Err.bridgePathEnvVarNotSet)
 				}
@@ -695,7 +695,7 @@ public struct ProcessInvocation : AsyncSequence {
 		
 		let additionalTerminationHandler: @Sendable (Process) -> Void = { _ in
 			Conf.logger?.debug("Called in termination handler of process.")
-			if let fdWhoseFgPgIDShouldBeSet {
+			if let fdWhoseFgPgIDShouldBeSet = fdWhoseFgPgIDShouldBeSet {
 				/* Let’s revert the fg pg ID back to our pg ID. */
 				if tcsetpgrp(fdWhoseFgPgIDShouldBeSet.rawValue, getpgrp()) != 0 && errno != ENOTTY {
 					Conf.logger?.error("Failed setting foreground process group ID of controlling terminal of stdin back to our process group.")
@@ -789,7 +789,7 @@ public struct ProcessInvocation : AsyncSequence {
 		/* The executable is now launched.
 		 * We must not fail after this, so we wrap the rest of the function in a non-throwing block. */
 		return {
-			if let fdWhoseFgPgIDShouldBeSet {
+			if let fdWhoseFgPgIDShouldBeSet = fdWhoseFgPgIDShouldBeSet {
 				if tcsetpgrp(fdWhoseFgPgIDShouldBeSet.rawValue, getpgid(p.processIdentifier)) != 0 && errno != ENOTTY {
 					Conf.logger?.error("Failed setting the foreground group ID to the child process group ID.", metadata: ["error": "\(Errno(rawValue: errno))"])
 				}
