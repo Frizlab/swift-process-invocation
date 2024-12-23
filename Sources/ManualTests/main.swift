@@ -1,8 +1,8 @@
 import Foundation
-#if canImport(System)
-import System
-#else
+#if canImport(SystemPackage)
 import SystemPackage
+#elseif canImport(System)
+import System
 #endif
 
 import CLTLogger
@@ -37,8 +37,14 @@ let logger = Logger(label: "com.xcode-actions.manual-process-invocation-tests")
 //}
 
 do {
+#if canImport(SystemPackage) || canImport(System)
 	let fd = try! FileDescriptor.open("/dev/null", .readOnly)
 	defer {_ = try? fd.close()}
+#else
+	let fh = FileHandle(forReadingAtPath: "/dev/null")!
+	let fd = FileDescriptor(rawValue: fh.fileDescriptor)
+	defer {_ = try? fh.close()}
+#endif
 	
 	/*let p = Process()
 	p.executableURL = URL(fileURLWithPath: "./toto")

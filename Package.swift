@@ -5,7 +5,7 @@ import Foundation
 
 
 /* ⚠️ Do not use the concurrency check flags in a release! */
-let          noSwiftSettings: [SwiftSetting] = []
+  let          noSwiftSettings: [SwiftSetting] = []
 //let concurrencySwiftSettings: [SwiftSetting] = [.unsafeFlags(["-Xfrontend", "-warn-concurrency", "-Xfrontend", "-enable-actor-data-race-checks"])]
 
 
@@ -40,9 +40,6 @@ let package = Package(
 		res.append(.package(url: "https://github.com/xcode-actions/clt-logger.git",            from: "1.0.0-beta.4"))
 		res.append(.package(url: "https://github.com/xcode-actions/stream-reader.git",         from: "3.6.0"))
 		res.append(.package(url: "https://github.com/xcode-actions/swift-signal-handling.git", .upToNextMinor(from: "1.1.2")))
-#if !canImport(System)
-		res.append(.package(url: "https://github.com/apple/swift-system.git",                  from: "1.0.0"))
-#endif
 		if useXtenderZ {
 			res.append(.package(url: "https://github.com/Frizlab/eXtenderZ.git",                from: "2.0.0"))
 		}
@@ -57,9 +54,6 @@ let package = Package(
 			res.append(.product(name: "SignalHandling", package: "swift-signal-handling"))
 			res.append(.product(name: "StreamReader",   package: "stream-reader"))
 			res.append(.product(name: "UnwrapOrThrow",  package: "UnwrapOrThrow"))
-#if !canImport(System)
-			res.append(.product(name: "SystemPackage",  package: "swift-system"))
-#endif
 			res.append(.target(name: "CMacroExports"))
 			if useXtenderZ {
 				res.append(.product(name: "eXtenderZ-static", package: "eXtenderZ"))
@@ -78,9 +72,7 @@ let package = Package(
 			res.append(.product(name: "ArgumentParser", package: "swift-argument-parser"))
 			res.append(.product(name: "CLTLogger",      package: "clt-logger"))
 			res.append(.product(name: "Logging",        package: "swift-log"))
-#if !canImport(System)
-			res.append(.product(name: "SystemPackage",  package: "swift-system"))
-#endif
+			res.append(.product(name: "StreamReader",   package: "stream-reader"))
 			res.append(.target(name: "CMacroExports"))
 			if needsGNUSourceExports {
 				res.append(.target(name: "CGNUSourceExports"))
@@ -94,9 +86,6 @@ let package = Package(
 			res.append(.product(name: "CLTLogger",     package: "clt-logger"))
 			res.append(.product(name: "Logging",       package: "swift-log"))
 			res.append(.product(name: "StreamReader",  package: "stream-reader"))
-#if !canImport(System)
-			res.append(.product(name: "SystemPackage",  package: "swift-system"))
-#endif
 			if needsGNUSourceExports {
 				res.append(.target(name: "CGNUSourceExportsForTests"))
 			}
