@@ -26,7 +26,7 @@ let executableName = isXcode ? "ProcessInvocationBridge" : "swift-process-invoca
 
 let package = Package(
 	name: "swift-process-invocation",
-	platforms: [.macOS(.v12)/* FilePath is unusable before macOS 12. */],
+	platforms: [.macOS(.v11)],
 	products: [
 		.library(name: "ProcessInvocation", targets: ["ProcessInvocation"]),
 		/* A launcher for forwarding fds when needed. */
@@ -36,6 +36,7 @@ let package = Package(
 		var res = [Package.Dependency]()
 		res.append(.package(url: "https://github.com/apple/swift-argument-parser.git",         from: "1.2.2"))
 		res.append(.package(url: "https://github.com/apple/swift-log.git",                     from: "1.5.2"))
+		res.append(.package(url: "https://github.com/apple/swift-system.git",                  from: "1.0.0")) /* We’re aware of the existence of System on macOS. After some thinking/research, we decided to agree with <https://forums.swift.org/t/50719/5>. */
 		res.append(.package(url: "https://github.com/Frizlab/UnwrapOrThrow.git",               from: "1.0.1"))
 		res.append(.package(url: "https://github.com/xcode-actions/clt-logger.git",            from: "1.0.0-beta.4"))
 		res.append(.package(url: "https://github.com/xcode-actions/stream-reader.git",         from: "3.6.0"))
@@ -54,6 +55,7 @@ let package = Package(
 			res.append(.product(name: "SignalHandling", package: "swift-signal-handling"))
 			res.append(.product(name: "StreamReader",   package: "stream-reader"))
 			res.append(.product(name: "UnwrapOrThrow",  package: "UnwrapOrThrow"))
+			res.append(.product(name: "SystemPackage",  package: "swift-system"))
 			res.append(.target(name: "CMacroExports"))
 			if useXtenderZ {
 				res.append(.product(name: "eXtenderZ-static", package: "eXtenderZ"))
@@ -73,6 +75,7 @@ let package = Package(
 			res.append(.product(name: "CLTLogger",      package: "clt-logger"))
 			res.append(.product(name: "Logging",        package: "swift-log"))
 			res.append(.product(name: "StreamReader",   package: "stream-reader"))
+			res.append(.product(name: "SystemPackage",  package: "swift-system"))
 			res.append(.target(name: "CMacroExports"))
 			if needsGNUSourceExports {
 				res.append(.target(name: "CGNUSourceExports"))
@@ -86,6 +89,7 @@ let package = Package(
 			res.append(.product(name: "CLTLogger",     package: "clt-logger"))
 			res.append(.product(name: "Logging",       package: "swift-log"))
 			res.append(.product(name: "StreamReader",  package: "stream-reader"))
+			res.append(.product(name: "SystemPackage",  package: "swift-system"))
 			if needsGNUSourceExports {
 				res.append(.target(name: "CGNUSourceExportsForTests"))
 			}

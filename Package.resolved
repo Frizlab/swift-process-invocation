@@ -56,6 +56,15 @@
         }
       },
       {
+        "package": "swift-system",
+        "repositoryURL": "https://github.com/apple/swift-system.git",
+        "state": {
+          "branch": null,
+          "revision": "c8a44d836fe7913603e246acab7c528c2e780168",
+          "version": "1.4.0"
+        }
+      },
+      {
         "package": "UnwrapOrThrow",
         "repositoryURL": "https://github.com/Frizlab/UnwrapOrThrow.git",
         "state": {

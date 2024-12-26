@@ -1,14 +1,10 @@
 import Foundation
-#if canImport(SystemPackage)
-import SystemPackage
-#elseif canImport(System)
-import System
-#endif
 
 import ArgumentParser
 import CLTLogger
 import CMacroExports
 import Logging
+import SystemPackage
 
 #if !canImport(Darwin)
 import CGNUSourceExports

@@ -1,14 +1,10 @@
 import Foundation
-#if canImport(SystemPackage)
-import SystemPackage
-#elseif canImport(System)
-import System
-#endif
 import XCTest
 
 import CLTLogger
 import Logging
 import StreamReader
+import SystemPackage
 
 #if canImport(CGNUSourceExportsForTests)
 import CGNUSourceExportsForTests

@@ -1,15 +1,11 @@
 /* From officectl. */
 
 import Foundation
-#if canImport(SystemPackage)
-import SystemPackage
-#elseif canImport(System)
-import System
-#endif
 import XCTest
 
 import CLTLogger
 import Logging
+import SystemPackage
 
 
 

@@ -1,9 +1,4 @@
 import Foundation
-#if canImport(SystemPackage)
-import SystemPackage
-#elseif canImport(System)
-import System
-#endif
 
 #if canImport(eXtenderZ)
 import CNSTaskHelptender
@@ -11,6 +6,7 @@ import eXtenderZ
 #endif
 import SignalHandling
 import StreamReader
+import SystemPackage
 
 #if !canImport(Darwin)
 import CGNUSourceExports
