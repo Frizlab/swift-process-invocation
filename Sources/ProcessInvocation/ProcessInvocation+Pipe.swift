@@ -60,7 +60,7 @@ public extension ProcessInvocation {
 				do {
 					try reader.peekData(size: Swift.max(0, maxCacheSize - (reader.currentStreamReadPosition - reader.currentReadPosition)), allowReadingLess: true, { _ in })
 					try reader.peekData(size: reader.currentStreamReadPosition - reader.currentReadPosition, allowReadingLess: false, { bytes in
-						let (writtenNow, readError) = {
+						let (writtenNow, readError) = { () -> (Int, Int32) in
 							guard bytes.count > 0 else {
 								return (0, Int32(0))
 							}

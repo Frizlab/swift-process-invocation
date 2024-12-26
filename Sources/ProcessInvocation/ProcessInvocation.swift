@@ -529,7 +529,7 @@ public struct ProcessInvocation : AsyncSequence {
 			/* Let’s see if the fd is a master pt or not.
 			 * This is needed to detect EOF properly and not throw an error when reading from a master pt (see handleProcessOutput for more info). */
 			if spi_ptsname(fd.rawValue) == nil {
-				let error = Errno(rawValue: errno)
+				let error = SystemPackage.Errno(rawValue: errno)
 				if error.rawValue != ENOTTY {
 					Conf.logger?.warning("Cannot determine whether fd is a master pt or not; assuming it’s not.", metadata: ["fd": "\(fd.rawValue)", "error": "\(error)"])
 				}

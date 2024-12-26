@@ -140,15 +140,31 @@ final class ProcessInvocationTests : XCTestCase {
 	}
 	
 	func testProcessTerminationHandler() throws {
+#if swift(>=5.10)
 		nonisolated(unsafe) var wentIn = false
-		let (_, g) = try ProcessInvocation("/bin/cat", stdinRedirect: .fromNull, signalsToProcess: []).invoke(outputHandler: { _,_,_ in }, terminationHandler: { p in
+#else
+		final class BoolRef : @unchecked Sendable {
+			var value = false
+		}
+		let wentIn = BoolRef()
+#endif
+		/* Note: The @Sendable annotation is for Swift 5.5. */
+		let (_, g) = try ProcessInvocation("/bin/cat", stdinRedirect: .fromNull, signalsToProcess: []).invoke(outputHandler: { _,_,_ in }, terminationHandler: { @Sendable p in
+#if swift(>=5.10)
 			wentIn = true
+#else
+			wentIn.value = true
+#endif
 		})
 		
 		/* No need to wait on the process anymore */
 		g.wait()
 		
+#if swift(>=5.10)
 		XCTAssertTrue(wentIn)
+#else
+		XCTAssertTrue(wentIn.value)
+#endif
 	}
 	
 	func testNonStandardFdCapture() throws {

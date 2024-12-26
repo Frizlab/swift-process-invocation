@@ -65,6 +65,7 @@ do {
 //		print("From cat: \(line.strLineOrHex())")
 //	}
 	
+#if swift(>=5.7)
 	/* Try to read one line from ProcessInvocation and then one using StreamReader. */
 	let pi = ProcessInvocation("head", "-n", "1")
 	for try await line in pi {
@@ -76,6 +77,7 @@ do {
 	} else {
 		print("Failed reading line from stream reader.")
 	}
+#endif
 } catch {
 	print("Failed running the process: \(error)")
 }
@@ -132,6 +134,8 @@ func setRequireNonBlockingIO(on fd: FileDescriptor, logChange: Bool) throws {
 		throw Errno(rawValue: errno)
 	}
 }
+
+typealias FileDescriptorReader = GenericStreamReader
 
 
 
