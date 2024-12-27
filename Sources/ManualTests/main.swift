@@ -143,7 +143,7 @@ typealias FileDescriptorReader = GenericStreamReader
 
 /* The toto.swift file content when we used it to debug the fact that cat did not receive anything from stdin when run in the Terminal.
 import Foundation
-import System
+import SystemPackage
 
 import StreamReader // @xcode-actions/stream-reader ~> 3.5
 
