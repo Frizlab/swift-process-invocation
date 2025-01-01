@@ -4,6 +4,10 @@ import PackageDescription
 import Foundation
 
 
+//let swiftSettings: [SwiftSetting] = []
+let swiftSettings: [SwiftSetting] = [.enableExperimentalFeature("StrictConcurrency")]
+
+
 /* Detect if we need the eXtenderZ.
  * If we do (on Apple platforms where the non-public Foundation implementation is used), the eXtenderZ should be able to be imported.
  * See Process+Utils for reason why we use the eXtenderZ. */
@@ -62,7 +66,7 @@ let package = Package(
 			/* The ProcessInvocation depends (indirectly) on the bridge. */
 			res.append(.target(name: "ProcessInvocationBridge"))
 			return res
-		}()))
+		}(), swiftSettings: swiftSettings))
 		
 		res.append(.executableTarget(name: "ProcessInvocationBridge", dependencies: {
 			var res = [Target.Dependency]()
@@ -76,7 +80,7 @@ let package = Package(
 				res.append(.target(name: "CGNUSourceExports"))
 			}
 			return res
-		}()))
+		}(), swiftSettings: swiftSettings))
 		
 		res.append(.testTarget(name: "ProcessInvocationTests", dependencies: {
 			var res = [Target.Dependency]()
@@ -89,16 +93,16 @@ let package = Package(
 				res.append(.target(name: "CGNUSourceExportsForTests"))
 			}
 			return res
-		}()))
+		}(), swiftSettings: swiftSettings))
 		
 		/* Some complex macros exported as functions to be used in Swift. */
-		res.append(.target(name: "CMacroExports"))
+		res.append(.target(name: "CMacroExports", swiftSettings: swiftSettings))
 		if useXtenderZ {
-			res.append(.target(name: "CNSTaskHelptender", dependencies: [.product(name: "eXtenderZ-static", package: "eXtenderZ")]))
+			res.append(.target(name: "CNSTaskHelptender", dependencies: [.product(name: "eXtenderZ-static", package: "eXtenderZ")], swiftSettings: swiftSettings))
 		}
 		if needsGNUSourceExports {
-			res.append(.target(name: "CGNUSourceExports"))
-			res.append(.target(name: "CGNUSourceExportsForTests"))
+			res.append(.target(name: "CGNUSourceExports", swiftSettings: swiftSettings))
+			res.append(.target(name: "CGNUSourceExportsForTests", swiftSettings: swiftSettings))
 		}
 		
 		/* Some manual tests for stdin redirect behavior. */
@@ -107,7 +111,7 @@ let package = Package(
 			.product(name: "CLTLogger",    package: "clt-logger"),
 			.product(name: "Logging",      package: "swift-log"),
 			.product(name: "StreamReader", package: "stream-reader"),
-		]))
+		], swiftSettings: swiftSettings))
 		
 		return res
 	}()
