@@ -454,11 +454,15 @@ public struct ProcessInvocation : AsyncSequence {
 		switch stdinRedirect {
 			case .none(let setFgPgID): 
 				p.standardInput = FileHandle.standardInput /* Already the case in theory as it is the default, but let’s be explicit. */
-				let originalPgrp = tcgetpgrp(FileDescriptor.standardInput.rawValue)
-				if originalPgrp == -1 {
-					Conf.logger?.warning("Cannot determine the process group ID of the process that owns standard input; skipping foreground process group ID setting.", metadata: ["error": "\(Errno(rawValue: errno))"])
+				if setFgPgID {
+					let originalPgrp = tcgetpgrp(FileDescriptor.standardInput.rawValue)
+					if originalPgrp == -1 {
+						Conf.logger?.warning("Cannot determine the process group ID of the process that owns standard input; skipping foreground process group ID setting.", metadata: ["error": "\(Errno(rawValue: errno))"])
+					}
+					fgPgIDSetInfo = (originalPgrp != -1 ? (FileDescriptor.standardInput, originalPgrp) : nil)
+				} else {
+					fgPgIDSetInfo = nil
 				}
-				fgPgIDSetInfo = (setFgPgID && originalPgrp != -1 ? (FileDescriptor.standardInput, originalPgrp) : nil)
 				
 			case .fromNull:
 				p.standardInput = nil
@@ -470,11 +474,15 @@ public struct ProcessInvocation : AsyncSequence {
 					assert(fileDescriptorsToSend.isEmpty, "Giving ownership to fd on stdin is not allowed when launching the process via the bridge. This is because stdin has to be sent via the bridge and we get only pain and race conditions to properly close the fd.")
 					fdsToCloseAfterRun.insert(fd)
 				}
-				let originalPgrp = tcgetpgrp(fd.rawValue)
-				if originalPgrp == -1 {
-					Conf.logger?.warning("Cannot determine the process group ID of the process that owns the given fd; skipping foreground process group ID setting.", metadata: ["error": "\(Errno(rawValue: errno))", "fd": "\(fd)"])
+				if setFgPgID {
+					let originalPgrp = tcgetpgrp(fd.rawValue)
+					if originalPgrp == -1 {
+						Conf.logger?.warning("Cannot determine the process group ID of the process that owns the given fd; skipping foreground process group ID setting.", metadata: ["error": "\(Errno(rawValue: errno))"])
+					}
+					fgPgIDSetInfo = (originalPgrp != -1 ? (fd, originalPgrp) : nil)
+				} else {
+					fgPgIDSetInfo = nil
 				}
-				fgPgIDSetInfo = (setFgPgID && originalPgrp != -1 ? (fd, originalPgrp) : nil)
 				
 			case .sendFromReader(let reader):
 				assert(fileDescriptorsToSend.isEmpty, "Sending data to stdin via a reader is not allowed when launching the process via the bridge. This is because stdin has to be sent via the bridge and we get only pain and race conditions to properly close the fd.")
