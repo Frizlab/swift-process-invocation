@@ -466,7 +466,7 @@ public struct ProcessInvocation : AsyncSequence {
 					assert(fileDescriptorsToSend.isEmpty, "Giving ownership to fd on stdin is not allowed when launching the process via the bridge. This is because stdin has to be sent via the bridge and we get only pain and race conditions to properly close the fd.")
 					fdsToCloseAfterRun.insert(fd)
 				}
-				fdWhoseFgPgIDShouldBeSet = (setFgPgID ? FileDescriptor.standardInput : nil)
+				fdWhoseFgPgIDShouldBeSet = (setFgPgID ? fd : nil)
 				
 			case .sendFromReader(let reader):
 				assert(fileDescriptorsToSend.isEmpty, "Sending data to stdin via a reader is not allowed when launching the process via the bridge. This is because stdin has to be sent via the bridge and we get only pain and race conditions to properly close the fd.")
