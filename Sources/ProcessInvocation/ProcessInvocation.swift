@@ -447,18 +447,22 @@ public struct ProcessInvocation : AsyncSequence {
 			}
 		}
 		
-		let fdWhoseFgPgIDShouldBeSet: FileDescriptor?
 		var fdsToCloseAfterRun = Set<FileDescriptor>()
 		var fdRedirects = [FileDescriptor: FileDescriptor]()
 		var outputFileDescriptors = additionalOutputFileDescriptors
+		let fgPgIDSetInfo: (destFd: FileDescriptor, originalValue: Int32)?
 		switch stdinRedirect {
 			case .none(let setFgPgID): 
 				p.standardInput = FileHandle.standardInput /* Already the case in theory as it is the default, but let’s be explicit. */
-				fdWhoseFgPgIDShouldBeSet = (setFgPgID ? FileDescriptor.standardInput : nil)
+				let originalPgrp = tcgetpgrp(FileDescriptor.standardInput.rawValue)
+				if originalPgrp == -1 {
+					Conf.logger?.warning("Cannot determine the process group ID of the process that owns standard input; skipping foreground process group ID setting.", metadata: ["error": "\(Errno(rawValue: errno))"])
+				}
+				fgPgIDSetInfo = (setFgPgID && originalPgrp != -1 ? (FileDescriptor.standardInput, originalPgrp) : nil)
 				
 			case .fromNull:
 				p.standardInput = nil
-				fdWhoseFgPgIDShouldBeSet = nil
+				fgPgIDSetInfo = nil
 				
 			case .fromFd(let fd, let shouldClose, let setFgPgID):
 				p.standardInput = FileHandle(fileDescriptor: fd.rawValue, closeOnDealloc: false)
@@ -466,7 +470,11 @@ public struct ProcessInvocation : AsyncSequence {
 					assert(fileDescriptorsToSend.isEmpty, "Giving ownership to fd on stdin is not allowed when launching the process via the bridge. This is because stdin has to be sent via the bridge and we get only pain and race conditions to properly close the fd.")
 					fdsToCloseAfterRun.insert(fd)
 				}
-				fdWhoseFgPgIDShouldBeSet = (setFgPgID ? fd : nil)
+				let originalPgrp = tcgetpgrp(fd.rawValue)
+				if originalPgrp == -1 {
+					Conf.logger?.warning("Cannot determine the process group ID of the process that owns the given fd; skipping foreground process group ID setting.", metadata: ["error": "\(Errno(rawValue: errno))", "fd": "\(fd)"])
+				}
+				fgPgIDSetInfo = (setFgPgID && originalPgrp != -1 ? (fd, originalPgrp) : nil)
 				
 			case .sendFromReader(let reader):
 				assert(fileDescriptorsToSend.isEmpty, "Sending data to stdin via a reader is not allowed when launching the process via the bridge. This is because stdin has to be sent via the bridge and we get only pain and race conditions to properly close the fd.")
@@ -474,7 +482,7 @@ public struct ProcessInvocation : AsyncSequence {
 				fdsToCloseAfterRun.insert(fd)
 				p.standardInput = FileHandle(fileDescriptor: fd.rawValue, closeOnDealloc: false)
 				/* TODO: If we fail later, should the write end of the pipe be closed? */
-				fdWhoseFgPgIDShouldBeSet = nil
+				fgPgIDSetInfo = nil
 		}
 		switch stdoutRedirect {
 			case .none: p.standardOutput = FileHandle.standardOutput /* Already the case in theory as it is the default, but let’s be explicit. */
@@ -691,9 +699,9 @@ public struct ProcessInvocation : AsyncSequence {
 		
 		let additionalTerminationHandler: @Sendable (Process) -> Void = { _ in
 			Conf.logger?.debug("Called in termination handler of process.")
-			if let fdWhoseFgPgIDShouldBeSet = fdWhoseFgPgIDShouldBeSet {
-				/* Let’s revert the fg pg ID back to our pg ID. */
-				if tcsetpgrp(fdWhoseFgPgIDShouldBeSet.rawValue, getpgrp()) != 0 && errno != ENOTTY {
+			if let fgPgIDSetInfo = fgPgIDSetInfo {
+				/* Let’s revert the fg pg ID back to the original value. */
+				if tcsetpgrp(fgPgIDSetInfo.destFd.rawValue, fgPgIDSetInfo.originalValue) != 0 && errno != ENOTTY {
 					Conf.logger?.error("Failed setting foreground process group ID of controlling terminal of stdin back to our process group.")
 				}
 			}
@@ -785,8 +793,11 @@ public struct ProcessInvocation : AsyncSequence {
 		/* The executable is now launched.
 		 * We must not fail after this, so we wrap the rest of the function in a non-throwing block. */
 		return {
-			if let fdWhoseFgPgIDShouldBeSet = fdWhoseFgPgIDShouldBeSet {
-				if tcsetpgrp(fdWhoseFgPgIDShouldBeSet.rawValue, getpgid(p.processIdentifier)) != 0 && errno != ENOTTY {
+			if let fgPgIDSetInfo = fgPgIDSetInfo {
+				let pgid = getpgid(p.processIdentifier)
+				if pgid == -1 {
+					Conf.logger?.error("Failed retrieving the process group ID of the child process.", metadata: ["error": "\(Errno(rawValue: errno))"])
+				} else if tcsetpgrp(fgPgIDSetInfo.destFd.rawValue, pgid) != 0 && errno != ENOTTY {
 					Conf.logger?.error("Failed setting the foreground group ID to the child process group ID.", metadata: ["error": "\(Errno(rawValue: errno))"])
 				}
 			}
