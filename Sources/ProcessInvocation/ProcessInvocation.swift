@@ -709,6 +709,7 @@ public struct ProcessInvocation : AsyncSequence {
 			Conf.logger?.debug("Called in termination handler of process.")
 			if let fgPgIDSetInfo = fgPgIDSetInfo {
 				/* Let’s revert the fg pg ID back to the original value. */
+				Conf.logger?.debug("Setting pgrp of input fd back to original value.", metadata: ["fd": "\(fgPgIDSetInfo.destFd)", "value": "\(fgPgIDSetInfo.originalValue)"])
 				if tcsetpgrp(fgPgIDSetInfo.destFd.rawValue, fgPgIDSetInfo.originalValue) != 0 && errno != ENOTTY {
 					Conf.logger?.error("Failed setting foreground process group ID of controlling terminal of redirected stdin back to the original value.")
 				}
