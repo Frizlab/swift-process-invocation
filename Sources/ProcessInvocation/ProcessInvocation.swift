@@ -447,6 +447,21 @@ public struct ProcessInvocation : AsyncSequence {
 			}
 		}
 		
+		func getFgPgIDSetInfo(for fd: FileDescriptor) -> (destFd: FileDescriptor, originalValue: Int32)? {
+			let originalPgrp = tcgetpgrp(fd.rawValue)
+			guard originalPgrp != -1 else {
+				if errno != ENOTTY {
+					Conf.logger?.warning("Cannot determine the process group ID of the process that owns standard input; skipping foreground process group ID setting.", metadata: ["error": "\(Errno(rawValue: errno))"])
+				} else {
+					/* The ENOTTY error means the given fd does not have a TTY.
+					 * Setting the fg process group of a fd w/o a TTY does not make sense, so we skip it with an info message instead of a warning. */
+					Conf.logger?.info("The given file descriptor does not have a TTY; skipping foreground process group ID setting.")
+				}
+				return nil
+			}
+			return (fd, originalPgrp)
+		}
+		
 		var fdsToCloseAfterRun = Set<FileDescriptor>()
 		var fdRedirects = [FileDescriptor: FileDescriptor]()
 		var outputFileDescriptors = additionalOutputFileDescriptors
@@ -454,15 +469,7 @@ public struct ProcessInvocation : AsyncSequence {
 		switch stdinRedirect {
 			case .none(let setFgPgID): 
 				p.standardInput = FileHandle.standardInput /* Already the case in theory as it is the default, but let’s be explicit. */
-				if setFgPgID {
-					let originalPgrp = tcgetpgrp(FileDescriptor.standardInput.rawValue)
-					if originalPgrp == -1 {
-						Conf.logger?.warning("Cannot determine the process group ID of the process that owns standard input; skipping foreground process group ID setting.", metadata: ["error": "\(Errno(rawValue: errno))"])
-					}
-					fgPgIDSetInfo = (originalPgrp != -1 ? (FileDescriptor.standardInput, originalPgrp) : nil)
-				} else {
-					fgPgIDSetInfo = nil
-				}
+				fgPgIDSetInfo = (setFgPgID ? getFgPgIDSetInfo(for: FileDescriptor.standardInput) : nil)
 				
 			case .fromNull:
 				p.standardInput = nil
@@ -474,15 +481,7 @@ public struct ProcessInvocation : AsyncSequence {
 					assert(fileDescriptorsToSend.isEmpty, "Giving ownership to fd on stdin is not allowed when launching the process via the bridge. This is because stdin has to be sent via the bridge and we get only pain and race conditions to properly close the fd.")
 					fdsToCloseAfterRun.insert(fd)
 				}
-				if setFgPgID {
-					let originalPgrp = tcgetpgrp(fd.rawValue)
-					if originalPgrp == -1 {
-						Conf.logger?.warning("Cannot determine the process group ID of the process that owns the given fd; skipping foreground process group ID setting.", metadata: ["error": "\(Errno(rawValue: errno))"])
-					}
-					fgPgIDSetInfo = (originalPgrp != -1 ? (fd, originalPgrp) : nil)
-				} else {
-					fgPgIDSetInfo = nil
-				}
+				fgPgIDSetInfo = (setFgPgID ? getFgPgIDSetInfo(for: fd) : nil)
 				
 			case .sendFromReader(let reader):
 				assert(fileDescriptorsToSend.isEmpty, "Sending data to stdin via a reader is not allowed when launching the process via the bridge. This is because stdin has to be sent via the bridge and we get only pain and race conditions to properly close the fd.")
