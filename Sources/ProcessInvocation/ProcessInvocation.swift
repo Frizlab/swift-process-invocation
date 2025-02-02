@@ -711,7 +711,7 @@ public struct ProcessInvocation : AsyncSequence {
 				/* Let’s revert the fg pg ID back to the original value. */
 				Conf.logger?.debug("Setting pgrp of input fd back to original value.", metadata: ["fd": "\(fgPgIDSetInfo.destFd)", "value": "\(fgPgIDSetInfo.originalValue)"])
 				if tcsetpgrp(fgPgIDSetInfo.destFd.rawValue, fgPgIDSetInfo.originalValue) != 0 && errno != ENOTTY {
-					Conf.logger?.error("Failed setting foreground process group ID of controlling terminal of redirected stdin back to the original value.")
+					Conf.logger?.error("Failed setting foreground process group ID of controlling terminal of redirected stdin back to the original value.", metadata: ["error": "\(Errno(rawValue: errno))"])
 				}
 			}
 			signalCleanupHandler()
